@@ -65,6 +65,10 @@ private:
 
 // These are the new entry points to entities. 
 LINK_ENTITY_TO_CLASS( info_player_deathmatch, CBaseDMStart )
+//added by harSens
+LINK_ENTITY_TO_CLASS( info_good_start, CBaseDMStart );
+LINK_ENTITY_TO_CLASS( info_evil_start, CBaseDMStart );
+
 LINK_ENTITY_TO_CLASS( info_player_start, CPointEntity )
 LINK_ENTITY_TO_CLASS( info_landmark, CPointEntity )
 

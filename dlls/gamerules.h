@@ -163,6 +163,10 @@ public:
 	// Immediately end a multiplayer game
 	virtual void EndMultiplayerGame( void ) {}
 	virtual BOOL IsBustingGame( void ){ return FALSE; };
+
+	//added by harSens
+	virtual void UpdatePlayerStats(){}
+	int m_iAveragePowerLevel;	
 };
 
 extern CGameRules *InstallGameRules( void );
@@ -361,6 +365,10 @@ protected:
 	float m_flIntermissionEndTime;
 	BOOL m_iEndIntermissionButtonHit;
 	void SendMOTDToClient( edict_t *client );
+
+	//added by harSens
+	int m_iAverageKi;
+	virtual void UpdatePlayerStats();
 };
 
 bool IsPlayerBusting( CBaseEntity *pPlayer );

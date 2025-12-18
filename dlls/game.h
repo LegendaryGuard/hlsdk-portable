@@ -21,7 +21,10 @@ extern void GameDLLInit( void );
 extern cvar_t displaysoundlist;
 
 // multiplayer server rules
+/* modified by harSens
 extern cvar_t teamplay;
+*/
+extern cvar_t gamemode;
 extern cvar_t fraglimit;
 extern cvar_t timelimit;
 extern cvar_t friendlyfire;

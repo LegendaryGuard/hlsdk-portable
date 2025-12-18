@@ -30,6 +30,11 @@ This file contains "stubs" of class member implementations so that we can predic
 #include	"nodes.h"
 #include	"soundent.h"
 #include	"skill.h"
+//added by harSens
+#include    "effects.h"
+#include	"aura.h"
+#include    "classes.h"
+//end harSens add
 
 // Globals used by game logic
 const Vector g_vecZero = Vector( 0, 0, 0 );
@@ -90,6 +95,7 @@ int CBaseToggle::Save( class CSave & ) { return 1; }
 void CBaseToggle::KeyValue( struct KeyValueData_s * ) { }
 
 // CGrenade Stubs
+/*removed by harSens
 void CGrenade::BounceSound( void ) { }
 void CGrenade::Explode( Vector, Vector ) { }
 void CGrenade::Explode( TraceResult *, int ) { }
@@ -98,6 +104,7 @@ void CGrenade::Spawn( void ) { }
 CGrenade *CGrenade::ShootTimed( entvars_t *pevOwner, Vector vecStart, Vector vecVelocity, float time ){ return 0; }
 CGrenade *CGrenade::ShootContact( entvars_t *pevOwner, Vector vecStart, Vector vecVelocity ){ return 0; }
 void CGrenade::DetonateUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value ){ }
+*/
 
 void UTIL_Remove( CBaseEntity *pEntity ){ }
 struct skilldata_t gSkillData;

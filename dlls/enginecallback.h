@@ -17,6 +17,8 @@
 #define ENGINECALLBACK_H
 
 #include "event_flags.h"
+#include "edict.h"
+#include "eiface.h"
 
 // Fix warning in MSVC8
 #undef SERVER_EXECUTE

@@ -144,7 +144,10 @@ typedef struct playermove_s
 	int		iuser1;
 	int		iuser2;
 	int		iuser3;
+	/*changed by harSens: ugly hack to stop jumping/ducking
 	int		iuser4;
+	*/
+	int				stop_duck_jump;
 	float		fuser1;
 	float		fuser2;
 	float		fuser3;

@@ -9,6 +9,12 @@
 #define VIEWH 
 #pragma once
 
+//added by harSens
+#define VIEW_XOFF 0
+#define VIEW_YOFF 10
+#define VIEW_ZOFF 50
+//end harSens add
+
 #if !defined(M_PI)
 #define M_PI		3.14159265358979323846  // matches value in gcc v2 math.h
 #endif

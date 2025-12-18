@@ -17,6 +17,9 @@
 #if !defined(SAVERESTORE_H)
 #define SAVERESTORE_H
 
+#include "eiface.h"
+#include "util.h"
+
 class CBaseEntity;
 
 class CSaveRestoreBuffer

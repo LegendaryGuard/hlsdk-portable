@@ -341,8 +341,23 @@ int CHud::DrawHudNumber( int x, int y, int iFlags, int iNumber, int r, int g, in
 {
 	int iWidth = GetSpriteRect( m_HUD_number_0 ).right - GetSpriteRect( m_HUD_number_0 ).left;
 	int k;
-	
-	if( iNumber > 0 )
+
+	//added by harSens
+	if (iFlags & DHN_KI)
+	{
+		for ( int n = 100000000; n >= 1; n /= 10 )
+		{
+			if ( iNumber >= n )
+			{
+				k = (iNumber % (n * 10)) / n;
+				SPR_Set(GetSprite(m_HUD_number_0 + k), r, g, b );
+				SPR_DrawAdditive(0, x, y, &GetSpriteRect(m_HUD_number_0 + k));
+				x += iWidth;
+			}
+		}
+	}
+	//end harSens add
+	else if( iNumber > 0 )
 	{
 		// SPR_Draw 100's
 		if( iNumber >= 100 )
@@ -405,6 +420,19 @@ int CHud::DrawHudNumber( int x, int y, int iFlags, int iNumber, int r, int g, in
 
 int CHud::GetNumWidth( int iNumber, int iFlags )
 {
+	//added by harSens
+	if( iFlags & DHN_KI )
+	{
+		int digits = 0;
+		for ( int n = 100000000; n >= 1; n /= 10 )
+		{
+			if ( iNumber >= n )
+				digits++;
+		}
+		return digits;
+	}
+	//end harSens add
+
 	if( iFlags & ( DHN_3DIGITS ) )
 		return 3;
 

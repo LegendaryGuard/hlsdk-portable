@@ -24,6 +24,10 @@
 #include	"gamerules.h"
 #include	"skill.h"
 #include	"items.h"
+//added by harSens
+#include "effects.h"
+#include "aura.h"
+#include "classes.h"
 
 extern DLL_GLOBAL CGameRules	*g_pGameRules;
 extern DLL_GLOBAL BOOL	g_fGameOver;

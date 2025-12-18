@@ -427,6 +427,26 @@ void CHud::Init( void )
 #endif
 
 	m_Menu.Init();
+	//harSens speed code
+	m_Speed.Init();
+	//harSens camera code
+	m_Camera.Init();
+	//harSens magic charger
+	m_Charge.Init();
+	//harSens powerlevel bar
+	m_PowerLevel.Init();
+	//harSens explosion trigger
+	m_Explosion.Init();
+	//harSens powerstruggle
+	m_PowerStruggle.Init();
+	//harSens credits playback
+	m_Credits.Init();
+	//harSens spirit bomb charger
+	m_ChargeSpiritBomb.Init();
+	//harSens sensubean gfx
+	m_SensuBean.Init();
+	//harSens trail code
+	m_Trail.Init();
 
 	MsgFunc_ResetHUD( 0, 0, NULL );
 	ClientCmd( "richpresence_gamemode\n" );
@@ -625,6 +645,14 @@ void CHud::VidInit( void )
 #if !USE_VGUI || USE_NOVGUI_SCOREBOARD
 	m_Scoreboard.VidInit();
 #endif
+	//added by harSens: powerlevel
+	m_PowerLevel.VidInit();
+	//harSens explosion vidinit
+	m_Explosion.VidInit();
+	//harSen spirit bomb charger vidinit
+	m_ChargeSpiritBomb.VidInit();
+	//harSens sensubean vidinit
+	m_SensuBean.VidInit();
 }
 
 int CHud::MsgFunc_Logo( const char *pszName,  int iSize, void *pbuf )

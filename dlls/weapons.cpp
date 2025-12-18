@@ -30,6 +30,10 @@
 #include "soundent.h"
 #include "decals.h"
 #include "gamerules.h"
+//added by harSens
+#include "effects.h"
+#include "aura.h"
+#include "classes.h"
 
 extern CGraph WorldGraph;
 extern int gEvilImpulse101;
@@ -293,6 +297,7 @@ void W_Precache( void )
 
 	// custom items...
 
+	/*disabled by harSens
 	// common world objects
 	UTIL_PrecacheOther( "item_suit" );
 	UTIL_PrecacheOther( "item_healthkit" );
@@ -360,6 +365,31 @@ void W_Precache( void )
 		UTIL_PrecacheOther( "weaponbox" );// container for dropped deathmatch weapons
 	}
 #endif
+	*/
+
+	//added by harSens
+	UTIL_PrecacheOtherWeapon( "weapon_melee" );
+	UTIL_PrecacheOtherWeapon( "weapon_kiblast" );
+	UTIL_PrecacheOtherWeapon( "weapon_destructodisc" );
+	UTIL_PrecacheOtherWeapon( "weapon_gallitgun" );
+	UTIL_PrecacheOtherWeapon( "weapon_kamehameha" );
+	UTIL_PrecacheOtherWeapon( "weapon_solarflare" );
+	UTIL_PrecacheOtherWeapon( "weapon_eyelaser" );
+	UTIL_PrecacheOtherWeapon( "weapon_fingerlaser" );
+	UTIL_PrecacheOtherWeapon( "weapon_friezadisc" );
+	UTIL_PrecacheOtherWeapon( "weapon_specialbeamcannon" );
+	UTIL_PrecacheOtherWeapon( "weapon_spiritbomb" );
+	UTIL_PrecacheOtherWeapon( "weapon_bigbang" );
+	UTIL_PrecacheOtherWeapon( "weapon_finalflash" );
+	UTIL_PrecacheOtherWeapon( "weapon_masenko" );
+	UTIL_PrecacheOtherWeapon( "weapon_deathball" );
+	UTIL_PrecacheOtherWeapon( "weapon_burningattack" );
+	UTIL_PrecacheOtherWeapon( "weapon_sensu" );
+	UTIL_PrecacheOther( "aura" );
+	UTIL_PrecacheOther( "magicattack" );
+	UTIL_PrecacheOther( "dragonball" );
+	UTIL_PrecacheOther( "item_sensubeanbag" );
+
 	g_sModelIndexFireball = PRECACHE_MODEL( "sprites/zerogxplode.spr" );// fireball
 	g_sModelIndexWExplosion = PRECACHE_MODEL( "sprites/WXplo1.spr" );// underwater fireball
 	g_sModelIndexSmoke = PRECACHE_MODEL( "sprites/steam1.spr" );// smoke
@@ -641,8 +671,13 @@ void CBasePlayerWeapon::ItemPostFrame( void )
 			m_fFireOnEmpty = TRUE;
 		}
 
+		/*changed by harSens: don't fire when blocking/powering up
 		m_pPlayer->TabulateAmmo();
 		SecondaryAttack();
+		*/
+		if ( !m_pPlayer->m_fBlock && !m_pPlayer->m_fPowerUp )
+			SecondaryAttack();
+
 		m_pPlayer->pev->button &= ~IN_ATTACK2;
 	}
 	else if( ( m_pPlayer->pev->button & IN_ATTACK ) && CanAttack( m_flNextPrimaryAttack, gpGlobals->time, UseDecrement() ) )
@@ -652,8 +687,12 @@ void CBasePlayerWeapon::ItemPostFrame( void )
 			m_fFireOnEmpty = TRUE;
 		}
 
+		/*changed by harSens: don't fire when blocking/powering up
 		m_pPlayer->TabulateAmmo();
 		PrimaryAttack();
+		*/
+		if ( !m_pPlayer->m_fBlock && !m_pPlayer->m_fPowerUp )
+			PrimaryAttack();
 	}
 	else if( m_pPlayer->pev->button & IN_RELOAD && iMaxClip() != WEAPON_NOCLIP && !m_fInReload ) 
 	{
@@ -973,6 +1012,31 @@ BOOL CBasePlayerWeapon::CanDeploy( void )
 
 	return TRUE;
 }
+
+//added by harSens for weapons without the models, nor deploy animations
+BOOL CBasePlayerWeapon :: DefaultDeploy( char *szAnimExt )
+{
+	if (!CanDeploy())
+		return FALSE;
+
+	strcpy( m_pPlayer->m_szAnimExtention, szAnimExt );
+	m_pPlayer->m_flNextAttack = UTIL_WeaponTimeBase() + 0.5;
+	m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.0;
+	return TRUE;
+}
+
+float CBasePlayerWeapon::GetPowerRatio()
+{
+	if ( g_pGameRules->m_iAveragePowerLevel )
+	{
+		return (float)m_pPlayer->GetPowerLevel() / (float)g_pGameRules->m_iAveragePowerLevel;
+	}
+	else
+	{
+		return 0;
+	}
+}
+//end harSens add
 
 BOOL CBasePlayerWeapon::DefaultDeploy( const char *szViewModel, const char *szWeaponModel, int iAnim, const char *szAnimExt, int skiplocal /* = 0 */, int body )
 {

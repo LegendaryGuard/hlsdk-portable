@@ -63,20 +63,20 @@ if (USE_VGUI)
 endif()
 
 set (CLDLL_SOURCES
-	../dlls/crossbow.cpp
-	../dlls/crowbar.cpp
-	../dlls/egon.cpp
-	../dlls/gauss.cpp
-	../dlls/handgrenade.cpp
-	../dlls/hornetgun.cpp
-	../dlls/mp5.cpp
-	../dlls/python.cpp
-	../dlls/rpg.cpp
-	../dlls/satchel.cpp
-	../dlls/shotgun.cpp
-	../dlls/squeakgrenade.cpp
-	../dlls/tripmine.cpp
-	../dlls/glock.cpp
+	# ../dlls/crossbow.cpp
+	# ../dlls/crowbar.cpp
+	# ../dlls/egon.cpp
+	# ../dlls/gauss.cpp
+	# ../dlls/handgrenade.cpp
+	# ../dlls/hornetgun.cpp
+	# ../dlls/mp5.cpp
+	# ../dlls/python.cpp
+	# ../dlls/rpg.cpp
+	# ../dlls/satchel.cpp
+	# ../dlls/shotgun.cpp
+	# ../dlls/squeakgrenade.cpp
+	# ../dlls/tripmine.cpp
+	# ../dlls/glock.cpp
 	ev_hldm.cpp
 	hl/hl_baseentity.cpp
 	hl/hl_events.cpp
@@ -85,14 +85,17 @@ set (CLDLL_SOURCES
 	ammo.cpp
 	ammo_secondary.cpp
 	ammohistory.cpp
+	attackcharge.cpp	# ESF ALPHA 2.0
 	battery.cpp
 	cdll_int.cpp
 	com_weapons.cpp
+	credits.cpp	# ESF ALPHA 2.0
 	death.cpp
 	demo.cpp
 	entity.cpp
 	ev_common.cpp
 	events.cpp
+	explosion.cpp	# ESF ALPHA 2.0
 	flashlight.cpp
 	GameStudioModelRenderer.cpp
 	geiger.cpp
@@ -114,12 +117,18 @@ set (CLDLL_SOURCES
 	../pm_shared/pm_debug.c
 	../pm_shared/pm_math.c
 	../pm_shared/pm_shared.c
+	powerlevel.cpp	# ESF ALPHA 2.0
+	powerstruggle.cpp	# ESF ALPHA 2.0
 	saytext.cpp
+	sensubean.cpp	# ESF ALPHA 2.0
+	speed.cpp	# ESF ALPHA 2.0
+	spiritbombcharge.cpp	# ESF ALPHA 2.0
 	status_icons.cpp
 	statusbar.cpp
 	studio_util.cpp
 	StudioModelRenderer.cpp
 	text_message.cpp
+	trail.cpp	# ESF ALPHA 2.0
 	train.cpp
 	tri.cpp
 	util.cpp

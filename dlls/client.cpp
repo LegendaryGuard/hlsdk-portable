@@ -40,6 +40,10 @@
 #include "netadr.h"
 #include "pm_shared.h"
 
+//added by harSens
+#include "shake.h"
+#include "teamplay_gamerules.h"
+
 extern DLL_GLOBAL ULONG		g_ulModelIndexPlayer;
 extern DLL_GLOBAL BOOL		g_fGameOver;
 extern DLL_GLOBAL int		g_iSkillLevel;
@@ -48,6 +52,9 @@ extern DLL_GLOBAL ULONG		g_ulFrameCount;
 extern void CopyToBodyQue( entvars_t* pev );
 extern int giPrecacheGrunt;
 extern int gmsgSayText;
+//added by harSens
+extern int gmsgVGUIMenu;
+extern int gmsgChangeView;
 
 extern cvar_t allow_spectators;
 extern cvar_t multibyte_only;
@@ -164,6 +171,10 @@ void ClientKill( edict_t *pEntity )
 	entvars_t *pev = &pEntity->v;
 
 	CBasePlayer *pl = (CBasePlayer*)CBasePlayer::Instance( pev );
+
+	//added by harSens: observers can't suicide
+	if ( pl->m_afPhysicsFlags & PFLAG_OBSERVER )
+		return;
 
 	if( pl->m_fNextSuicideTime > gpGlobals->time )
 		return;  // prevent suiciding too ofter
@@ -493,6 +504,7 @@ void ClientCommand( edict_t *pEntity )
 	{
 		GetClassPtr( (CBasePlayer *)pev )->ForceClientDllUpdate(); 
 	}
+	/*removed by harSens:disable this louzy cheat
 	else if( FStrEq(pcmd, "give" ) )
 	{
 		if( g_enable_cheats->value != 0 )
@@ -501,6 +513,7 @@ void ClientCommand( edict_t *pEntity )
 			GetClassPtr( (CBasePlayer *)pev )->GiveNamedItem( STRING( iszItem ) );
 		}
 	}
+	*/
 	else if( FStrEq( pcmd, "fire" ) )
 	{
 		if( g_enable_cheats->value != 0 )
@@ -560,6 +573,61 @@ void ClientCommand( edict_t *pEntity )
 	{
 		GetClassPtr( (CBasePlayer *)pev )->SelectLastItem();
 	}
+	//added by harSens: esf console commands
+	else if (FStrEq(pcmd, "teleport"))
+	{
+		GetClassPtr((CBasePlayer *)pev)->Teleport();
+	}	
+	else if (FStrEq(pcmd, "togglefly"))
+	{
+		CBasePlayer *pPlayer = GetClassPtr((CBasePlayer *)pev);
+		if (!pPlayer->m_fFlying)
+			pPlayer->StartFly();
+		else
+			pPlayer->StopFly();
+	}
+	else if (FStrEq(pcmd, "turbo"))
+	{
+		CBasePlayer *pPlayer = GetClassPtr((CBasePlayer *)pev);
+		if (!pPlayer->m_fTurbo)
+			pPlayer->StartTurbo();
+		else
+			pPlayer->StopTurbo();
+	}
+	else if (FStrEq(pcmd, "block"))
+	{
+		CBasePlayer *pPlayer = GetClassPtr((CBasePlayer *)pev);
+		if (!pPlayer->m_fBlock)
+			pPlayer->StartBlock();
+		else
+			pPlayer->StopBlock();
+	}
+	else if (FStrEq(pcmd, "powerup"))
+	{
+		CBasePlayer *pPlayer = GetClassPtr((CBasePlayer *)pev);
+		if (!pPlayer->m_fPowerUp)
+			pPlayer->StartPowerUp();
+		else
+			pPlayer->StopPowerUp();
+	}
+	else if (FStrEq(pcmd,"change_class"))
+	{
+		GetClassPtr((CBasePlayer *)pev)->StartObserving();
+
+		//show class menu
+		MESSAGE_BEGIN(MSG_ONE, gmsgVGUIMenu, NULL, GetClassPtr((CBasePlayer *)pev)->edict());
+			WRITE_BYTE( 3 );
+		MESSAGE_END();
+	}
+	else if (FStrEq(pcmd,"change_team"))
+	{
+		extern int gmsgVGUIMenu;
+		MESSAGE_BEGIN(MSG_ONE, gmsgVGUIMenu, NULL, GetClassPtr((CBasePlayer *)pev)->edict());
+			WRITE_BYTE( 2 );	// This is the menu number that needs to be sent
+		MESSAGE_END();
+	}
+	else if (GetClassPtr((CBasePlayer *)pev)->ChangeClass(pcmd));
+	//end of harSens add
 	else if( FStrEq( pcmd, "spectate" ) ) // clients wants to become a spectator
 	{
 		CBasePlayer *pPlayer = GetClassPtr( (CBasePlayer *)pev );
@@ -818,7 +886,10 @@ void StartFrame( void )
 	if( g_fGameOver )
 		return;
 
+	/* modified by harSens
 	gpGlobals->teamplay = teamplay.value;
+	*/
+	gpGlobals->teamplay = gamemode.value;
 	g_ulFrameCount++;
 }
 
@@ -914,6 +985,9 @@ void ClientPrecache( void )
 	PRECACHE_SOUND( "player/pl_pain5.wav" );
 	PRECACHE_SOUND( "player/pl_pain6.wav" );
 	PRECACHE_SOUND( "player/pl_pain7.wav" );
+
+	//added by harSens
+	PRECACHE_SOUND("weapons/teleport.wav");
 
 	PRECACHE_MODEL( "models/player.mdl" );
 

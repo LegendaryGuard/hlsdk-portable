@@ -25,6 +25,10 @@
 #define RGB_YELLOWISH 0x00FFA000 //255,160,0
 #define RGB_REDISH 0x00FF1010 //255,160,0
 #define RGB_GREENISH 0x0000A000 //0,160,0
+//added by harSens
+#define RGB_BLUEISH 0x000000A0 // 0,0,160
+#define RGB_WHITEISH 0x00FFFFFF // 255,255,255
+#define MAX_TRAILS 100
 
 #include "wrect.h"
 #include "cl_dll.h"
@@ -34,6 +38,7 @@
 #define DHN_DRAWZERO 1
 #define DHN_2DIGITS  2
 #define DHN_3DIGITS  4
+#define DHN_KI       8	 //harSens: supports up to 9 digits
 #define MIN_ALPHA	 100	
 
 #define		HUDELEM_ACTIVE	1
@@ -56,6 +61,36 @@ typedef struct
 } RGBA;
 
 typedef struct cvar_s cvar_t;
+
+//added by harSens
+struct charge_sprite
+{
+	vec3_t origin;
+	vec3_t direction;
+};
+
+struct trail_points
+{
+	vec3_t point;
+	trail_points *next;
+};
+
+struct trail
+{
+	trail_points *points;
+	int sprite;
+	float width;
+	int target;
+};
+
+struct explosion
+{
+	vec3_t pos;
+	int radius;
+	char r, g, b, a;
+	explosion *next;
+};
+//end harSens add
 
 #define HUD_ACTIVE	1
 #define HUD_INTERMISSION 2
@@ -117,6 +152,16 @@ public:
 	int MsgFunc_WeapPickup( const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_ItemPickup( const char *pszName, int iSize, void *pbuf );
 	int MsgFunc_HideWeapon( const char *pszName, int iSize, void *pbuf );
+	
+	//added by harSens
+	/**
+	* Updates the max ki
+	* @param const char *pszName: message name
+	* @param int iSize: message size
+	* @param void *pbuf: buffer with message info
+	* @return int:always 1
+	*/ 
+	int MsgFunc_MaxKi( const char *pszName, int iSize, void *pbuf );
 
 	void SlotInput( int iSlot );
 	void _cdecl UserCmd_Slot1( void );
@@ -139,6 +184,11 @@ private:
 	WEAPON *m_pWeapon;
 	int m_HUD_bucket0;
 	int m_HUD_selection;
+	//added by harSens
+	int m_HUD_ki;
+	int m_iMaxKi;
+	int m_iActiveWeaponFrame;
+	float m_flLastWeaponDraw;
 };
 
 //
@@ -529,6 +579,399 @@ private:
 	icon_sprite_t m_IconList[MAX_ICONSPRITES];
 };
 
+//added by harSens
+/**
+* speed changer
+* @version 18-4-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudSpeed: public CHudBase 
+{ 
+public: 
+	/**
+	* initializes 
+	* @return int: always 1
+	*/
+	int Init();
+	
+	/**
+	* handles speed messages from the server
+	* @param const char *pszName: name of the message
+	* @param int iSize: size of the message
+	* @param void *pbuf: message buffer
+	*/
+	int MsgFunc_Speed(const char *pszName, int iSize, void *pbuf); 
+private:
+	void SetSpeed( int speed ); 
+}; 
+
+/**
+* Explosion maker
+* @version 14-8-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudExplosion: public CHudBase 
+{ 
+public: 
+	/**
+	* initializes 
+	* @return int: always 1
+	*/
+	int Init();
+
+	/**
+	* handles explosion messages from the server
+	* @param const char *pszName: name of the message
+	* @param int iSize: size of the message
+	* @param void *pbuf: message buffer
+	*/
+	int MsgFunc_Explosion(const char *pszName, int iSize, void *pbuf); 
+
+	/**
+	* loads explosion sprite
+	* @return int: always 1
+	*/
+	int VidInit();
+
+	/**
+	* Draw function, shrinks explosions
+	*/
+	int Draw(float flTime);
+private:
+	void AddExplosion(vec3_t org, int radius, char r, char g, char b, char a);
+	explosion* RemoveExplosion(explosion *exp);
+	float m_flLastResize;
+	int m_iBeam;
+}; 
+
+/**
+* Spirit bomb charger
+* @version 1-9-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudChargeSpiritBomb: public CHudBase 
+{ 
+public: 
+	/**
+	* initializes 
+	* @return int: always 1
+	*/
+	int Init();
+	
+	/**
+	* handles SB charge messages from the server
+	* @param const char *pszName: name of the message
+	* @param int iSize: size of the message
+	* @param void *pbuf: message buffer
+	*/
+	int MsgFunc_ChargeSB(const char *pszName, int iSize, void *pbuf); 
+
+	/**
+	* stops sb charging
+	* @param const char *pszName: name of the message
+	* @param int iSize: size of the message
+	* @param void *pbuf: message buffer
+	*/
+	int MsgFunc_StopChSB(const char *pszName, int iSize, void *pbuf); 
+
+	/**
+	* loads explosion sprite
+	* @return int: always 1
+	*/
+	int VidInit();
+
+	/**
+	* Think function
+	*/
+	void Think();
+private:
+	void CreateCharger(charge_sprite &charger);
+	vec3_t m_vecBomb; 
+}; 
+
+/**
+* camera view changer
+* @version 20-6-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudCamera: public CHudBase 
+{ 
+public:
+	/**
+	* initializes 
+	* @return int: always 1
+	*/
+	int Init();
+
+	/**
+	* handles camera view changing messages from the server
+	* @param const char *pszName: name of the message
+	* @param int iSize: size of the message
+	* @param void *pbuf: message buffer
+	*/
+	int MsgFunc_ChangeView(const char *pszName, int iSize, void *pbuf); 
+
+	///toggles the view if the changeview button is pressed
+	void _cdecl UserCmd_ToggleView(void);
+
+private:
+	int m_fForceView;
+}; 
+
+/**
+* Shows the credits
+* @version 31-8-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudCredits: public CHudBase 
+{ 
+public:
+	/**
+	* initializes 
+	* @return int: always 1
+	*/
+	int Init();
+
+	///draws credits
+	int Draw(float flTime);
+
+	///Shows credits if button for that is pressed
+	void _cdecl UserCmd_ShowCredits(void);
+
+private:
+	int m_fShowing;//are the credits already shown?
+	int m_iCreditNr;//number of showing credit
+	int m_iLastCredit;//nr of the last credit
+	float m_flNextScroll;
+	float m_flYOffset;
+	char m_pLeftCredits[255][255];
+	char m_pRightCredits[255][255];
+}; 
+
+/**
+* Charge bar drawer
+* @version 12-7-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudCharge: public CHudBase 
+{ 
+public:
+	/**
+	* initializes 
+	* @return int: always 1
+	*/
+	int Init();
+
+	///charge think function
+	int Draw(float flTime);
+
+	///draws the charge bar
+	void DrawChargeBar();
+
+	/**
+	* changes the fill value
+	* @param const char *pszName: name of the message
+	* @param int iSize: size of the message
+	* @param void *pbuf: message buffer
+	*/
+	int MsgFunc_Charge(const char *pszName, int iSize, void *pbuf);
+private:
+	float m_flFill;		
+};
+
+/**
+* Power Struggle drawing
+* @version 28-8-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudPowerStruggle: public CHudBase 
+{ 
+public:
+	/**
+	* initializes 
+	* @return int: always 1
+	*/
+	int Init();
+
+	///charge think function
+	int Draw(float flTime);
+
+	/**
+	* changes the 
+	* @param const char *pszName: name of the message
+	* @param int iSize: size of the message
+	* @param void *pbuf: message buffer
+	*/
+	int MsgFunc_PowerStrug(const char *pszName, int iSize, void *pbuf);
+private:
+	int m_fPowerStruggle;
+	float m_flPowerRatio;	
+};
+
+/**
+* Powerlevel indicator
+* @version 30-7-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudPowerLevel: public CHudBase
+{
+public:
+	/**
+	* Inits powerlevel
+	* @return int: always 1 (?)
+	*/
+	int Init();
+
+	/**
+	* Load some sprites,etc
+	* @return int: always 1 (?)
+	*/
+	int VidInit();
+	
+	/**
+	* Drawing code
+	* @param float flTime: time (?)
+	* @return bool: true if succeeded false if not
+	*/
+	int Draw(float flTime);
+	
+	/**
+	* Updates the powerlevel
+	* @param const char *pszName: message name
+	* @param int iSize: message size
+	* @param void *pbuf: buffer with message info
+	* @return int:always 1
+	*/ 
+	int MsgFunc_PowerLevel(const char *pszName, int iSize, void *pbuf);
+	
+	/**
+	* Updates the max powerlevel
+	* @param const char *pszName: message name
+	* @param int iSize: message size
+	* @param void *pbuf: buffer with message info
+	* @return int:always 1
+	*/ 
+	int MsgFunc_MaxPL(const char *pszName, int iSize, void *pbuf);
+
+private:
+	int m_iPowerLevel;
+	int m_iMaxPowerLevel;
+	int m_HUD_powerlevel;
+};
+
+/**
+* Sensubean hud gfx
+* @version 22-9-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudSensuBean: public CHudBase 
+{ 
+public: 
+	/**
+	* initializes 
+	* @return int: always 1
+	*/
+	int Init();
+	
+	/**
+	* handles senzubean messages from the server
+	* @param const char *pszName: name of the message
+	* @param int iSize: size of the message
+	* @param void *pbuf: message buffer
+	*/
+	int MsgFunc_SensuBean(const char *pszName, int iSize, void *pbuf); 
+
+	/**
+	* loads sprites
+	* @return int: always 1
+	*/
+	int VidInit();
+
+	/**
+	* Draw function
+	* @param float time: time since last level restart
+	*/
+	int Draw(float flTime);
+private:
+	int m_iSensuBeans;
+	int m_HUD_bean;
+};
+
+/**
+* Attack trails
+* @version 22-10-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CHudTrail: public CHudBase
+{
+public:
+	/**
+	* Inits trails
+	* @return int: always 1 (?)
+	*/
+	int Init();
+
+	/**
+	* Drawing code
+	* @param float flTime: time (?)
+	* @return bool: true if succeeded false if not
+	*/
+	int Draw(float flTime);
+	
+	/**
+	* Starts a trail
+	* @param const char *pszName: message name
+	* @param int iSize: message size
+	* @param void *pbuf: buffer with message info
+	* @return int:always 1
+	*/ 
+	int MsgFunc_CreateTrail(const char *pszName, int iSize, void *pbuf);
+	
+	/**
+	* Adds a point to the trail
+	* @param const char *pszName: message name
+	* @param int iSize: message size
+	* @param void *pbuf: buffer with message info
+	* @return int:always 1
+	*/ 
+	int MsgFunc_AddPoint(const char *pszName, int iSize, void *pbuf);
+
+	/**
+	* Removes the trail
+	* @param const char *pszName: message name
+	* @param int iSize: message size
+	* @param void *pbuf: buffer with message info
+	* @return int:always 1
+	*/ 
+	int MsgFunc_RemoveTrail(const char *pszName, int iSize, void *pbuf);
+private:
+	/**
+	* Adds a trail to the trail array
+	* @param vec3_t start: start position
+	* @param int target: entity to trail to 
+	* @param short sprite: trail sprite 
+	* @param unsigned char width: trail width
+	*/
+	void AddTrail(vec3_t start, int target, short sprite, unsigned char width);
+	
+	/*
+	* Draws the trail
+	* @param trail *trTrail: the trail to draw
+	*/
+	void DrawTrail(trail *trTrail);
+	
+	/*
+	* Finds a trail
+	* @param int target: target entity to search for
+	* @return int: the trail nr, -1 for not found
+	*/
+	int FindTrail(int target);
+	int m_iTrails;
+	float m_flLastBeamDraw;
+	trail m_Trail[MAX_TRAILS];
+};
+//end harSens add
+
 //
 //-----------------------------------------------------
 //
@@ -620,6 +1063,26 @@ public:
 #if !USE_VGUI || USE_NOVGUI_MOTD
 	CHudMOTD	m_MOTD;
 #endif
+	//speed changer by harSens
+	CHudSpeed m_Speed;
+	//camera changer by harSens
+	CHudCamera m_Camera;
+	//magic charger by harSens
+	CHudCharge m_Charge;
+	//powerlevel bar by harSens
+	CHudPowerLevel m_PowerLevel;
+	//explosion trigger by harSens
+	CHudExplosion m_Explosion;
+	//powerstruggle hud gfx by harSens
+	CHudPowerStruggle m_PowerStruggle;
+	//credits player by harSens
+	CHudCredits m_Credits;
+	//spirit bomb charger by harSens
+	CHudChargeSpiritBomb m_ChargeSpiritBomb;
+	//sensubean gfx by harSens
+	CHudSensuBean m_SensuBean;
+	//attack trails by harSens
+	CHudTrail m_Trail;
 
 	void Init( void );
 	void VidInit( void );

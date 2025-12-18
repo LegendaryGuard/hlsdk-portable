@@ -23,6 +23,10 @@
 #include "player.h"
 #include "talkmonster.h"
 #include "gamerules.h"
+//added by harSens
+#include "effects.h"
+#include "aura.h"
+#include "classes.h"
 
 static char *memfgets( byte *pMemFile, int fileSize, int &filePos, char *pBuffer, int bufferSize );
 

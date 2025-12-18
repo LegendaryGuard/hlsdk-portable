@@ -45,106 +45,141 @@ else()
 endif()
 
 set (SVDLL_SOURCES
-	agrunt.cpp
-	airtank.cpp
-	aflock.cpp
+	# aflock.cpp
+	# agrunt.cpp
+	# airtank.cpp
 	animating.cpp
 	animation.cpp
-	apache.cpp
-	barnacle.cpp
-	barney.cpp
-	bigmomma.cpp
-	bloater.cpp
+	aura.cpp	# ESF ALPHA 2.0
+	# apache.cpp
+	# barnacle.cpp
+	# barney.cpp
+	# bigmomma.cpp
+	# bloater.cpp
+	bigbang.cpp	# ESF ALPHA 2.0
 	bmodels.cpp
-	bullsquid.cpp
+	# bullsquid.cpp
+	burningattack.cpp	# ESF ALPHA 2.0
 	buttons.cpp
+	buu.cpp	# ESF ALPHA 2.0
+	capturethedragonballs_gamerules.cpp	# ESF ALPHA 2.0
 	cbase.cpp
+	cell.cpp	# ESF ALPHA 2.0
+	classes.cpp	# ESF ALPHA 2.0
 	client.cpp
 	combat.cpp
+	controlledweapon.cpp	# ESF ALPHA 2.0
 	controller.cpp
-	crossbow.cpp
-	crowbar.cpp
+	# crossbow.cpp
+	# crowbar.cpp
+	credits.cpp	# ESF ALPHA 2.0
+	deathball.cpp	# ESF ALPHA 2.0
 	defaultai.cpp
+	destructodisc.cpp	# ESF ALPHA 2.0
 	doors.cpp
+	dragonball.cpp	# ESF ALPHA 2.0
 	effects.cpp
-	egon.cpp
+	# egon.cpp
+	envmodel.cpp	# ESF ALPHA 2.0
 	explode.cpp
+	eyelaser.cpp	# ESF ALPHA 2.0
+	finalflash.cpp	# ESF ALPHA 2.0
+	fingerlaser.cpp	# ESF ALPHA 2.0
 	flyingmonster.cpp
+	frieza.cpp	# ESF ALPHA 2.0
+	friezadisc.cpp	# ESF ALPHA 2.0
 	func_break.cpp
-	func_tank.cpp
+	# func_tank.cpp
+	gallitgun.cpp	# ESF ALPHA 2.0
 	game.cpp
 	gamerules.cpp
-	gargantua.cpp
-	gauss.cpp
+	# gargantua.cpp
+	# gauss.cpp
 	genericmonster.cpp
-	ggrenade.cpp
+	# ggrenade.cpp
 	globals.cpp
-	glock.cpp
-	gman.cpp
+	# glock.cpp
+	# gman.cpp
+	gohan.cpp	# ESF ALPHA 2.0
+	goku.cpp	# ESF ALPHA 2.0
+	# handgrenade.cpp
+	# hassassin.cpp
+	# headcrab.cpp
+	# healthkit.cpp
+	# hgrunt.cpp
+	# hornet.cpp
+	# hornetgun.cpp
+	# houndeye.cpp
 	h_ai.cpp
-	h_battery.cpp
-	h_cine.cpp
+	# h_battery.cpp
+	# h_cine.cpp
 	h_cycler.cpp
 	h_export.cpp
-	handgrenade.cpp
-	hassassin.cpp
-	headcrab.cpp
-	healthkit.cpp
-	hgrunt.cpp
-	hornet.cpp
-	hornetgun.cpp
-	houndeye.cpp
-	ichthyosaur.cpp
-	islave.cpp
+	# ichthyosaur.cpp
+	# islave.cpp
 	items.cpp
-	leech.cpp
+	kamehameha.cpp	# ESF ALPHA 2.0
+	kiblast.cpp	# ESF ALPHA 2.0
+	krillin.cpp	# ESF ALPHA 2.0
+	# leech.cpp
 	lights.cpp
+	magicattack.cpp	# ESF ALPHA 2.0
 	maprules.cpp
+	masenko.cpp	# ESF ALPHA 2.0
+	melee.cpp	# ESF ALPHA 2.0
 	monstermaker.cpp
 	monsters.cpp
 	monsterstate.cpp
-	mortar.cpp
-	mp5.cpp
+	# mortar.cpp
+	# mp5.cpp
 	multiplay_gamerules.cpp
-	nihilanth.cpp
+	# nihilanth.cpp
 	nodes.cpp
 	observer.cpp
-	osprey.cpp
+	# osprey.cpp
 	pathcorner.cpp
+	piccolo.cpp	# ESF ALPHA 2.0
 	plane.cpp
 	plats.cpp
 	player.cpp
-	playermonster.cpp
-	python.cpp
-	rat.cpp
-	roach.cpp
-	rpg.cpp
-	satchel.cpp
+	# python.cpp
+	# rat.cpp
+	# roach.cpp
+	# rpg.cpp
+	# satchel.cpp
 	schedule.cpp
-	scientist.cpp
+	# scientist.cpp
 	scripted.cpp
-	shotgun.cpp
+	sensubean.cpp	# ESF ALPHA 2.0
+	senzubean.cpp	# ESF ALPHA 2.0
+	# shotgun.cpp
 	singleplay_gamerules.cpp
 	skill.cpp
+	solarflare.cpp	# ESF ALPHA 2.0
 	sound.cpp
 	soundent.cpp
+	specialbeamcannon.cpp	# ESF ALPHA 2.0
 	spectator.cpp
+	spiritbomb.cpp	# ESF ALPHA 2.0
 	squadmonster.cpp
-	squeakgrenade.cpp
+	# squeakgrenade.cpp
 	subs.cpp
 	talkmonster.cpp
 	teamplay_gamerules.cpp
 	tempmonster.cpp
-	tentacle.cpp
+	# tentacle.cpp
+	trail.cpp	# ESF ALPHA 2.0
 	triggers.cpp
-	tripmine.cpp
-	turret.cpp
+	# tripmine.cpp
+	trunks.cpp	# ESF ALPHA 2.0
+	# turret.cpp
 	util.cpp
-	vehicle.cpp
+	vegeta.cpp	# ESF ALPHA 2.0
+	# vehicle.cpp
 	weapons.cpp
 	world.cpp
 	xen.cpp
-	zombie.cpp
+	# zombie.cpp
 	../pm_shared/pm_debug.c
 	../pm_shared/pm_math.c
 	../pm_shared/pm_shared.c

@@ -29,6 +29,10 @@
 //#include "maprules.h" //empty file
 #include "cbase.h"
 #include "player.h"
+//added by harSens
+#include "effects.h"
+#include "aura.h"
+#include "classes.h"
 
 class CRuleEntity : public CBaseEntity
 {

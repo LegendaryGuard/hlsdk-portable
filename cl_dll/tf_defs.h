@@ -157,6 +157,7 @@
 // Defines for the playerclass
 #define PC_UNDEFINED	0 
 
+/*modified by harSens
 #define PC_SCOUT		1 
 #define PC_SNIPER		2 
 #define PC_SOLDIER		3 
@@ -166,14 +167,27 @@
 #define PC_PYRO			7
 #define PC_SPY			8
 #define PC_ENGINEER		9
+*/
+#define PC_BUU			0
+#define PC_GOKU			1
+#define PC_GOHAN		2
+#define PC_KRILLIN		3
+#define PC_FRIEZA		4
+#define PC_PICCOLO		5
+#define PC_TRUNKS		6
+#define	PC_VEGETA		7
+#define PC_CELL			8
 
 // Insert new class definitions here
 
 // PC_RANDOM _MUST_ be the third last class
-#define PC_RANDOM		10 		// Random playerclass
+#define PC_RANDOM		9 		// Random playerclass
+/* removed by harSens
 #define PC_CIVILIAN		11		// Civilians are a special class. They cannot
 								// be chosen by players, only enforced by maps
-#define PC_LASTCLASS	12 		// Use this as the high-boundary for any loops
+*/
+//modified by harSens, used to be 12
+#define PC_LASTCLASS	10 		// Use this as the high-boundary for any loops
 								// through the playerclass.
 
 #define SENTRY_COLOR	10		// will be in the PC_RANDOM slot for team colors
@@ -1122,6 +1136,9 @@ float already_chosen_map;
 #define MENU_TEAM_CHANGE			21
 
 #define MENU_REFRESH_RATE 			25
+
+//added by harSens
+#define MENU_MP3MENU				30
 
 #define MENU_VOICETWEAK				50
 

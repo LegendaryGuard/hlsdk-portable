@@ -335,3 +335,38 @@ class CItemLongJump : public CItem
 };
 
 LINK_ENTITY_TO_CLASS( item_longjump, CItemLongJump )
+
+/**
+* Senzubean class
+* @version: 16-9-2001
+* @author Herwin 'harSens' van Welbergen
+*/
+class CSensuBeanBag : public CItem
+{
+	/**
+	* Spawns the bean
+	*/
+	void Spawn()
+	{
+		Precache();
+		SET_MODEL(ENT(pev), "models/w_sensubeanbag.mdl");
+		CItem::Spawn();
+	}
+
+	/**
+	* Precaches the models
+	*/
+	void Precache()
+	{
+		PRECACHE_MODEL("models/w_sensubeanbag.mdl");
+	}
+
+	/**
+	* Touch function
+	*/
+	BOOL MyTouch(CBasePlayer* pPlayer)
+	{
+		return pPlayer->GiveBean(3);		
+	}
+};
+LINK_ENTITY_TO_CLASS(item_sensubeanbag, CSensuBeanBag);

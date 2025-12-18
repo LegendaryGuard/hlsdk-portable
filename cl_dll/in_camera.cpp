@@ -14,6 +14,17 @@
 #include "const.h"
 #include "camera.h"
 #include "in_defs.h"
+//added by harSens
+#include "pm_shared.h"
+#include "pmtrace.h"
+#include "cl_entity.h"	
+#include "event_api.h"
+#include "pm_defs.h"
+#include "view.h"
+#include "parsemsg.h"
+#include "vgui_TeamFortressViewport.h"
+
+//end harSens add
 
 #if XASH_WIN32
 #define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
@@ -100,6 +111,10 @@ void CAM_ToThirdPerson(void);
 void CAM_ToFirstPerson(void);
 void CAM_StartDistance(void);
 void CAM_EndDistance(void);
+//added by harSens
+int cam_idealview;
+float switchtime; 
+//end harSens add
 
 //-------------------------------------------------- Local Functions
 
@@ -185,7 +200,11 @@ void DLLEXPORT CAM_Think( void )
 			break;
 	}
 
+	/* modified by harSens
 	if( !cam_thirdperson )
+		return;
+	*/
+	if ( cam_idealview == VIEW_FIRSTPERSON )
 		return;
 #if LATER
 	if( cam_contain->value )
@@ -197,6 +216,49 @@ void DLLEXPORT CAM_Think( void )
 	camAngles[PITCH] = cam_idealpitch->value;
 	camAngles[YAW] = cam_idealyaw->value;
 	dist = cam_idealdist->value;
+
+	//added by harSens
+	//calculate camera pos
+	pmtrace_t tr;
+	AngleVectors(camAngles, camForward, camRight, camUp);
+	cl_entity_t *player = gEngfuncs.GetLocalPlayer();
+	if ( player && (gEngfuncs.GetMaxClients() > 0) && (gViewPort && gEngfuncs.pEventAPI) )
+	{
+		vec3_t view_ofs;
+		gEngfuncs.pEventAPI->EV_LocalPlayerViewheight(view_ofs);
+		vec3_t camera_offset = Vector(VIEW_XOFF, VIEW_YOFF, VIEW_ZOFF);
+		vec3_t player_origin = player->origin + camera_offset + view_ofs;
+		vec3_t camera_origin = player_origin - camForward * 100; // + offset; 
+
+		//check if something blocks our view
+		gEngfuncs.pEventAPI->EV_SetSolidPlayers(player->index - 1);
+		gEngfuncs.pEventAPI->EV_SetTraceHull(3);
+		gEngfuncs.pEventAPI->EV_PlayerTrace(player_origin, camera_origin, PM_NORMAL, -1, &tr);
+
+		dist = tr.fraction * 100; //update the view distance
+		camera_origin = player_origin - camForward * dist; 
+
+		//check if our view is still blocked
+		gEngfuncs.pEventAPI->EV_PlayerTrace(player_origin, camera_origin, PM_NORMAL, -1, &tr);
+		if ( tr.fraction < 1.0 ) //that didnt work. switch to 1st person
+		{
+			switchtime = gEngfuncs.GetClientTime();
+			if ( cam_thirdperson )
+				CAM_ToFirstPerson();
+		}
+		else
+		{
+			if ( !cam_thirdperson )
+			{
+				if (gEngfuncs.GetClientTime() - switchtime > 0.5) //don't pogo-camera
+					CAM_ToThirdPerson();
+			}
+		}
+	}
+
+	if ( !cam_thirdperson )
+		return;
+	//end harSens add
 
 	//
 	//movement of the camera with the mouse
@@ -575,6 +637,10 @@ void CAM_ClearStates( void )
 	cam_idealpitch->value = viewangles[PITCH];
 	cam_idealyaw->value = viewangles[YAW];
 	cam_idealdist->value = CAM_MIN_DIST;
+
+	//added by harSens
+	cam_idealview = VIEW_FIRSTPERSON;
+	float switchtime = -0.5;
 }
 
 void CAM_StartMouseMove( void )
@@ -668,3 +734,45 @@ void DLLEXPORT CL_CameraOffset( float *ofs )
 {
 	VectorCopy( cam_ofs, ofs );
 }
+
+//harSens view changer
+DECLARE_COMMAND( m_Camera, ToggleView );
+DECLARE_MESSAGE( m_Camera, ChangeView );
+
+void CHudCamera::UserCmd_ToggleView(void)
+{
+	if (m_fForceView) return;
+	if (cam_idealview != VIEW_FIRSTPERSON) //in 3rd person?
+	{
+		cam_idealview = VIEW_FIRSTPERSON;
+		CAM_ToFirstPerson();
+	}
+	else
+		cam_idealview = VIEW_THIRDPERSON;
+}
+
+
+int CHudCamera::Init()
+{
+	m_fForceView = false;
+	HOOK_MESSAGE(ChangeView);
+	HOOK_COMMAND("toggleview", ToggleView);
+	gHUD.AddHudElem(this);
+	return 1;
+}
+
+int CHudCamera::MsgFunc_ChangeView(const char *pszName, int iSize, void *pbuf)
+{
+	BEGIN_READ(pbuf, iSize);
+	char camera_view = READ_BYTE();
+	m_fForceView = READ_BYTE();
+	if (camera_view == 1)
+	{
+		cam_idealview = VIEW_FIRSTPERSON;
+		CAM_ToFirstPerson();
+	}
+	else
+		cam_idealview = VIEW_THIRDPERSON;
+	return 1;
+}
+//end of harSens view changer

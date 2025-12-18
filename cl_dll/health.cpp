@@ -31,6 +31,8 @@
 
 DECLARE_MESSAGE( m_Health, Health )
 DECLARE_MESSAGE( m_Health, Damage )
+//added by harSens
+DECLARE_MESSAGE( m_Health, MaxHealth )
 
 #define PAIN_NAME "sprites/%d_pain.spr"
 #define DAMAGE_NAME "sprites/%d_dmg.spr"
@@ -57,6 +59,10 @@ int CHudHealth::Init( void )
 {
 	HOOK_MESSAGE( Health );
 	HOOK_MESSAGE( Damage );
+	//added by harSens
+	HOOK_MESSAGE( MaxHealth );
+	m_iMaxHealth = 100;
+	//end harSens add
 	m_iHealth = 100;
 	m_fFade = 0;
 	m_iFlags = 0;
@@ -112,6 +118,14 @@ int CHudHealth::MsgFunc_Health( const char *pszName, int iSize, void *pbuf )
 		m_iHealth = x;
 	}
 
+	return 1;
+}
+
+//added by harSens
+int CHudHealth:: MsgFunc_MaxHealth(const char *pszName, int iSize, void *pbuf)
+{
+	BEGIN_READ(pbuf, iSize);
+	m_iMaxHealth = READ_BYTE();
 	return 1;
 }
 
@@ -186,8 +200,10 @@ int CHudHealth::Draw( float flTime )
 	if( ( gHUD.m_iHideHUDDisplay & HIDEHUD_HEALTH ) || gEngfuncs.IsSpectateOnly() )
 		return 1;
 
+	/*disabled by harSens
 	if( !m_hSprite )
 		m_hSprite = LoadSprite( PAIN_NAME );
+	*/
 
 	// Has health changed? Flash the health #
 	if( m_fFade )
@@ -215,15 +231,66 @@ int CHudHealth::Draw( float flTime )
 	// Only draw health if we have the suit.
 	if( gHUD.m_iWeaponBits & ( 1 << ( WEAPON_SUIT ) ) )
 	{
+		/* modified by harSens
 		HealthWidth = gHUD.GetSpriteRect( gHUD.m_HUD_number_0 ).right - gHUD.GetSpriteRect( gHUD.m_HUD_number_0 ).left;
+		*/
 		int CrossWidth = gHUD.GetSpriteRect( m_HUD_cross ).right - gHUD.GetSpriteRect( m_HUD_cross ).left;
+		int CrossHeight = gHUD.GetSpriteRect(m_HUD_cross).bottom - gHUD.GetSpriteRect(m_HUD_cross).top;
+		HealthWidth = ScreenWidth * 0.25 - CrossWidth;
 
+		/*modified by harSens
 		y = ScreenHeight - gHUD.m_iFontHeight - gHUD.m_iFontHeight / 2;
+		*/
+		y = ScreenHeight - CrossHeight - CrossHeight/2;
 		x = CrossWidth / 2;
 
 		SPR_Set( gHUD.GetSprite( m_HUD_cross ), r, g, b );
 		SPR_DrawAdditive( 0, x, y, &gHUD.GetSpriteRect( m_HUD_cross ) );
 
+		//added by harSens: draw health bar
+		x += CrossWidth + CrossWidth / 2;
+
+		//draw outside lines
+		int width = HealthWidth;
+		int heigth = CrossHeight;
+		UnpackRGB(r, g, b, RGB_GREENISH);
+		FillRGBA(x, y, width, 1, r, g, b, 255);
+		FillRGBA(x, y + heigth - 1, width, 1,r, g, b, 255);
+		FillRGBA(x, y + 1, 1, heigth - 1, r, g, b, 255);
+		FillRGBA(x + width - 1, y + 1, 1, heigth - 1,r, g, b, 255);
+		width -= 2;
+		heigth -=2;
+		x++;
+		y++;
+
+		// draw numbers
+		UnpackRGB(r, g, b, RGB_WHITEISH);
+		int number_heigth = gHUD.GetSpriteRect(gHUD.m_HUD_number_0).bottom - gHUD.GetSpriteRect(gHUD.m_HUD_number_0).top;
+		int digit_width = gHUD.GetSpriteRect(gHUD.m_HUD_number_0).right - gHUD.GetSpriteRect(gHUD.m_HUD_number_0).left;
+		int number_width = digit_width * gHUD.GetNumWidth(m_iHealth, DHN_KI);
+		//check if number fits in bar		
+		if (number_heigth<heigth && number_width < width)
+		{
+			int number_y = y + (heigth - number_heigth) / 2;
+			int number_x = x + (width - number_width) / 2;
+			gHUD.DrawHudNumber(number_x, number_y, DHN_KI, m_iHealth, r, g, b);
+		}
+
+		int w = (m_iHealth * width) / m_iMaxHealth;
+
+		// Always show at least one pixel if we have health
+		if (w <= 0)
+			w = 1;
+
+		UnpackRGB(r, g, b, RGB_REDISH);
+		FillRGBA(x, y, w, heigth, r, g, b, 255);
+		x += w;
+		width -= w;
+
+		UnpackRGB(r, g, b, RGB_YELLOWISH);
+		FillRGBA(x, y, width, heigth, r, g, b, 128);
+
+		/* disabled by harSens
 		x = CrossWidth + HealthWidth / 2;
 
 		x = gHUD.DrawHudNumber( x, y + gHUD.m_iHudNumbersYOffset, DHN_3DIGITS | DHN_DRAWZERO, m_iHealth, r, g, b );
@@ -234,10 +301,14 @@ int CHudHealth::Draw( float flTime )
 		int iWidth = HealthWidth / 10;
 		UnpackRGB( r, g, b, RGB_YELLOWISH );
 		FillRGBA( x, y + gHUD.m_iHudNumbersYOffset, iWidth, iHeight, r, g, b, a );
+		*/
 	}
 
+	/* disabled by harSens
 	DrawDamage( flTime );
 	return DrawPain( flTime );
+	*/
+	return 1;
 }
 
 void CHudHealth::CalcDamageDirection( vec3_t vecFrom )

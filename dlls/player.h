@@ -17,6 +17,10 @@
 #define PLAYER_H
 
 #include "pm_materials.h"
+//added by harSens
+#include "aura.h"
+#include "classes.h"
+//end harSens add
 
 #define PLAYER_FATAL_FALL_SPEED		1024// approx 60 feet
 #define PLAYER_MAX_SAFE_FALL_SPEED	580// approx 20 feet
@@ -61,6 +65,12 @@
 
 #define TEAM_NAME_LENGTH	16
 
+//added by harSens
+#define FLY_KI_COST 10			//kost of flying per think
+#define TURBO_KI_COST 10		//kost of turbo per think
+#define TELEPORT_KI_COST 0.2	//kost of a teleport (part of maxki)
+#define MAX_SENSUBEAN 5			//max amount of senzubeans to be hold
+
 typedef enum
 {
 	PLAYER_IDLE,
@@ -68,7 +78,21 @@ typedef enum
 	PLAYER_JUMP,
 	PLAYER_SUPERJUMP,
 	PLAYER_DIE,
-	PLAYER_ATTACK1
+	PLAYER_ATTACK1,
+	//added by harSens
+	PLAYER_ATTACK2,
+	PLAYER_CHARGE,
+	PLAYER_CONTROL,
+	PLAYER_BLOCK,
+	PLAYER_POWERUP,
+	PLAYER_FLYFORWARD,
+	PLAYER_FLYBACKWARD,
+	PLAYER_PUNCH,
+	PLAYER_KICK,
+	PLAYER_BACKFLIP,
+	PLAYER_HITSWEEP,
+	PLAYER_CATCHBEAN
+	//end harSens add
 } PLAYER_ANIM;
 
 #define MAX_ID_RANGE 2048
@@ -127,6 +151,159 @@ public:
 
 	unsigned int		m_afPhysicsFlags;	// physics flags - set when 'normal' physics should be revisited or overriden
 	float				m_fNextSuicideTime; // the time after which the player can next use the suicide command
+
+	//added by harSens
+	float				m_flAddKi;			//time of last ki add
+	float				m_flBlindedTime;	//time when blinded
+	BOOL				m_fFlying;			//set when flying
+	BOOL				m_fTurbo;			//set when in turbo mode
+	BOOL				m_fObserverFlag;	//set when in observer mode
+	BOOL				m_fRandomClass;		//set when player is a random class
+	BOOL				m_fBlock;			//set when the player is in blocking mode
+	BOOL				m_fPowerUp;			//set when the player is in powerup mode
+	BOOL				m_fCharging;		//set when the player is charging a wave attack
+	BOOL				m_fControl;			//set when guiding a magicattack
+	BOOL				m_fHoldDisc;		//set when the player holds a disk
+	BOOL				m_fBlinded;			//set when the player is blinded by a solarflare
+	int					m_iClientSpeed;		//What the client thinks the player's max speed is 
+	int					m_iPowerLevel;		//The powerlevel for the character
+	int					m_iMaxPowerLevel;	//The max powerlevel for the character
+	int					m_iMaxSpeed;		//max speed for the character
+	int					m_iMaxKi;			//max ki for the character
+	int					m_iClientPowerLevel;//What the client thinks is the powerlevel
+	float				m_flSlowDown;		//Slowdown compared to normal speed. needed for block, charge, powerup, etc
+	short				m_sModelIndexTurbo;	//the turbo aura
+	int					m_iSensuBeans;		//the nr of senzubeans the player has
+	CBaseClass			*m_pClass;			//class of the player
+	CAura				*m_pAura;			//the aura for this player	
+
+	/**
+	* constructor
+	*/
+	CBasePlayer(){m_pClass = NULL;}
+
+	/**
+	* destructor
+	*/
+	~CBasePlayer(){if (m_pClass) delete m_pClass;}
+
+	/**
+	* teleports
+	*/
+	void Teleport( void );
+
+	/**
+	* starts turbo mode
+	*/
+	void StartTurbo ( void );
+
+	/**
+	* stop turbo mode
+	*/
+	void StopTurbo ( void );
+
+	/**
+	* start fly mode
+	*/
+	void StartFly(void);
+
+	/**
+	* stop fly mode
+	*/
+	void StopFly(void);
+
+	/**
+	* Changes the class of the player
+	* @param const char *pClassName: the name of the class to change in
+	* @return bool:class exists
+	*/
+	BOOL ChangeClass(const char *pClassName);
+
+	/**
+	* start blockmode
+	*/
+	void StartBlock();
+
+	/**
+	* stop blockmode
+	*/
+	void StopBlock();
+
+	/**
+	* starts powerup
+	*/
+	void StartPowerUp();
+
+	/**
+	* stops powerup
+	*/
+	void StopPowerUp();
+
+	/**
+	* handles flying. It's called in prethink
+	*/
+	void FlyAround( void );
+
+	/**
+	* gets maximum speed for this class including turbo
+	* @return int: the maximum speed
+	*/
+	int GetMaxSpeed( void );
+
+	/**
+	* gets the powerlevel, corrected for turbo
+	* @return int: the powerlevel
+	*/
+	int GetPowerLevel(void);
+
+	/**
+	* Starts observing mode
+	*/
+	void StartObserving ( void );
+
+	/**
+	* Stops observing mode
+	*/
+	void StopObserving ( void );
+
+	/**
+	* Sets max health to hud
+	* @param int health: max health 
+	*/
+	void SetMaxHealth(int health);
+
+	/**
+	* Sets max ki to hud
+	* @param int ki: max ki
+	*/
+	void SetMaxKi(int ki);
+
+	/**
+	* Sets max ki to hud
+	* @param int ki: max ki
+	*/
+	void SetMaxPowerLevel(int powerlevel);
+
+	/**
+	* gives you beans
+	* @param int nr_of_beans: nr of beans to get
+	* @return BOOL: accepted some of the beans?
+	*/
+	BOOL GiveBean(int nr_of_beans);
+
+	/**
+	* use a bean
+	* @return BOOL: possible to take a bean?
+	*/
+	BOOL TakeBean();
+
+	/**
+	* increase PL,ki,health, by killing someone
+	* @param CBasePlayer *pVictim: the one killed
+	* @param int damage: damage done to victim
+	*/
+	void IncreaseStrength(CBasePlayer *pVictim, int damage);
+	//end harSens add
 
 	// these are time-sensitive things that we keep track of
 	float				m_flTimeStepSound;	// when the last stepping sound was made
@@ -217,6 +394,16 @@ public:
 	virtual BOOL IsAlive( void ) { return (pev->deadflag == DEAD_NO) && pev->health > 0; }
 	virtual BOOL ShouldFadeOnDeath( void ) { return FALSE; }
 	virtual	BOOL IsPlayer( void ) { return TRUE; }			// Spectators should return FALSE for this, they aren't "players" as far as game logic is concerned
+
+	//old HL1SDK code used
+	/**
+	* plays the stepsound
+	* @param int step: the material on wich we step
+	* @param float fvol: volume of step sound
+	*/
+	void PlayStepSound( int step, float fvol );
+	void UpdateStepSound( void );
+	//end old HL1SDK code used
 
 	virtual BOOL IsNetClient( void ) { return TRUE; }		// Bots should return FALSE for this, they can't receive NET messages
 															// Spectators should return TRUE for this

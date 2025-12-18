@@ -55,6 +55,7 @@ CBaseEntity
 // C functions for external declarations that call the appropriate C++ methods
 
 #include "exportdef.h"
+#include "extdll.h"
 
 extern "C" EXPORT int GetEntityAPI( DLL_FUNCTIONS *pFunctionTable, int interfaceVersion );
 extern "C" EXPORT int GetEntityAPI2( DLL_FUNCTIONS *pFunctionTable, int *interfaceVersion );
@@ -597,6 +598,8 @@ public:
 #define DMG_GENERIC			0			// generic damage was done
 #define DMG_CRUSH			(1 << 0)	// crushed by falling or moving object
 #define DMG_BULLET			(1 << 1)	// shot
+//added by harSens
+#define DMG_FLASH			(1 << 1)	// solar flare
 #define DMG_SLASH			(1 << 2)	// cut, clawed, stabbed
 #define DMG_BURN			(1 << 3)	// heat burned
 #define DMG_FREEZE			(1 << 4)	// frozen
@@ -618,15 +621,22 @@ public:
 #define DMG_RADIATION		(1 << 18)	// radiation exposure
 #define DMG_DROWNRECOVER	(1 << 19)	// drowning recovery
 #define DMG_ACID			(1 << 20)	// toxic chemicals or acid burns
+/*modified by harSens
 #define DMG_SLOWBURN		(1 << 21)	// in an oven
 #define DMG_SLOWFREEZE		(1 << 22)	// in a subzero freezer
 #define DMG_MORTAR			(1 << 23)	// Hit by air raid (done to distinguish grenade from mortar)
+*/
+#define DMG_PUNCH			(1 << 21)	// punched
+#define DMG_KICK			(1 << 22)	// kicked
+#define DMG_MAGIC			(1 << 23)	// Hit by magical attack
 
 // these are the damage types that are allowed to gib corpses
 #define DMG_GIB_CORPSE		( DMG_CRUSH | DMG_FALL | DMG_BLAST | DMG_SONIC | DMG_CLUB )
 
 // these are the damage types that have client hud art
-#define DMG_SHOWNHUD		(DMG_POISON | DMG_ACID | DMG_FREEZE | DMG_SLOWFREEZE | DMG_DROWN | DMG_BURN | DMG_SLOWBURN | DMG_NERVEGAS | DMG_RADIATION | DMG_SHOCK)
+//modified by harSens
+//#define DMG_SHOWNHUD		(DMG_POISON | DMG_ACID | DMG_FREEZE | DMG_SLOWFREEZE | DMG_DROWN | DMG_BURN | DMG_SLOWBURN | DMG_NERVEGAS | DMG_RADIATION | DMG_SHOCK)
+#define DMG_SHOWNHUD		(DMG_POISON | DMG_ACID | DMG_FREEZE | DMG_DROWN | DMG_BURN | DMG_NERVEGAS | DMG_RADIATION | DMG_SHOCK)
 
 // NOTE: tweak these values based on gameplay feedback:
 

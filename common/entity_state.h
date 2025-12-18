@@ -108,7 +108,10 @@ struct entity_state_s
 	int		iuser1;
 	int		iuser2;
 	int		iuser3;
+	/*changed by harSens: really ugly hack to stop jumping and ducking
 	int		iuser4;
+	*/
+	int			stop_duck_jump;
 	float		fuser1;
 	float		fuser2;
 	float		fuser3;
@@ -163,7 +166,10 @@ typedef struct clientdata_s
 	int		iuser1;
 	int		iuser2;
 	int		iuser3;
+	/*changed by harSens: really ugly hack to stop jumping and ducking
 	int		iuser4;
+	*/
+	int			stop_duck_jump;
 	float		fuser1;
 	float		fuser2;
 	float		fuser3;

@@ -56,6 +56,7 @@
 
 #include "shake.h"
 #include "screenfade.h"
+#include "classes.h"
 
 void IN_SetVisibleMouse(bool visible);
 void IgnoreNextMouseDelta();
@@ -106,6 +107,7 @@ const char *sTFClasses[] =
 	"CIVILIAN",
 };
 
+/*modified by harSens
 const char *sLocalisedClasses[] =
 {
 	"#Civilian",
@@ -121,7 +123,23 @@ const char *sLocalisedClasses[] =
 	"#Random",
 	"#Civilian",
 };
+*/
+const char* sLocalisedClasses[] =
+{
+	"#Buu",
+	"#Goku",
+	"#Gohan",
+	"#Krillin",
+	"#Frieza",
+	"#Piccolo",
+	"#Trunks",
+	"#Vegeta",
+	"#Cell",
+	"#Randompc",
+};
 
+//changed by harSens
+/*
 const char *sTFClassSelection[] =
 {
 	"civilian",
@@ -137,7 +155,20 @@ const char *sTFClassSelection[] =
 	"randompc",
 	"civilian",
 };
-
+*/
+const char* sTFClassSelection[] =
+{
+	"buu",
+	"goku",
+	"gohan",
+	"krillin",
+	"frieza",
+	"piccolo",
+	"trunks",
+	"vegeta",
+	"cell",
+	"randompc",
+};
 
 // Get the name of TGA file, based on GameDir
 char *GetVGUITGAName( const char *pszName )
@@ -758,6 +789,19 @@ int TeamFortressViewport::CreateCommandMenu( const char *menuFile, int direction
 				else
 				{
 					// See if it's a Class
+					//added by harSens
+					for ( int i = 1; i <= PC_VEGETA; i++ )
+					{
+						if (!strcmp(token, sTFClasses[i]))
+						{
+							// Save it off
+							iPlayerClass = i;
+
+							// Get the button text
+							pfile = gEngfuncs.COM_ParseFile(pfile, token);
+							break;
+						}
+					}
 				}
 
 				// Get the button bound key
@@ -903,6 +947,18 @@ CCommandMenu *TeamFortressViewport::CreateDisguiseSubmenu( CommandButton *pButto
 	CCommandMenu *pMenu = CreateSubMenu( pButton, pParentMenu, iYOffset, iXOffset );
 	m_pCommandMenus[m_iNumMenus] = pMenu;
 	m_iNumMenus++;
+	
+	//added by harSens
+	for (int i = PC_BUU; i <= PC_VEGETA; i++)
+	{
+		CommandButton *pDisguiseButton = new CommandButton(CHudTextMessage::BufferedLocaliseTextString(sLocalisedClasses[i]), 0, BUTTON_SIZE_Y, CMENU_SIZE_X, BUTTON_SIZE_Y);
+
+		char sz[256]; 
+		sprintf(sz, "%s %d", commandText, i);
+		pDisguiseButton->addActionSignal(new CMenuHandler_StringCommand(sz));
+
+		pMenu->AddButton(pDisguiseButton);
+	}
 	
 	return pMenu;
 }

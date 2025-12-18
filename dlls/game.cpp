@@ -28,7 +28,10 @@ cvar_t fragsleft	= { "mp_fragsleft","0", FCVAR_SERVER | FCVAR_UNLOGGED };	  // D
 cvar_t timeleft		= { "mp_timeleft","0" , FCVAR_SERVER | FCVAR_UNLOGGED };	  // "      "
 
 // multiplayer server rules
+/* modified by harSens
 cvar_t teamplay		= { "mp_teamplay","0", FCVAR_SERVER };
+*/
+cvar_t gamemode		= { "mp_gamemode","0", FCVAR_SERVER };
 cvar_t fraglimit	= { "mp_fraglimit","0", FCVAR_SERVER };
 cvar_t timelimit	= { "mp_timelimit","0", FCVAR_SERVER };
 cvar_t friendlyfire	= { "mp_friendlyfire","0", FCVAR_SERVER };
@@ -482,7 +485,10 @@ void GameDLLInit( void )
 	CVAR_REGISTER( &displaysoundlist );
 	CVAR_REGISTER( &allow_spectators );
 
+	/* modified by harSens
 	CVAR_REGISTER( &teamplay );
+	*/
+	CVAR_REGISTER( &gamemode );
 	CVAR_REGISTER( &fraglimit );
 	CVAR_REGISTER( &timelimit );
 

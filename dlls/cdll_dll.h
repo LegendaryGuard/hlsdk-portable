@@ -22,8 +22,15 @@
 
 #define MAX_WEAPONS		32		// ???
 
+/*increased by harSens
 #define MAX_WEAPON_SLOTS		5	// hud item selection slots
+*/
+#define MAX_WEAPON_SLOTS		9	// hud item selection slots
+
+/*increased by harSens
 #define MAX_ITEM_TYPES			6	// hud item selection slots
+*/
+#define MAX_ITEM_TYPES		   10	// hud item selection slots
 
 #define MAX_ITEMS				5	// hard coded item types
 

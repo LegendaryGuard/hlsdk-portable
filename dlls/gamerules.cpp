@@ -25,6 +25,8 @@
 #include	"teamplay_gamerules.h"
 #include	"skill.h"
 #include	"game.h"
+//added by harSens
+#include "capturethedragonballs_gamerules.h"
 
 extern edict_t *EntSelectSpawnPoint( CBaseEntity *pPlayer );
 
@@ -317,6 +319,7 @@ CGameRules *InstallGameRules( void )
 	SERVER_COMMAND( "exec game.cfg\n" );
 	SERVER_EXECUTE();
 
+	/* Modified by harSens
 	if( !gpGlobals->deathmatch )
 	{
 		// generic half-life
@@ -349,4 +352,11 @@ CGameRules *InstallGameRules( void )
 			return new CHalfLifeMultiplay;
 		}
 	}
+	*/
+	switch ((int)CVAR_GET_FLOAT( "mp_gamemode" ))
+	{
+		case 1:  return new CHalfLifeTeamplay;
+		case 2:  return new CHalfLifeCaptureTheDragonBalls;
+		default: return new CHalfLifeMultiplay;
+	};
 }

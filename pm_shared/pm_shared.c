@@ -48,16 +48,27 @@ playermove_t *pmove = NULL;
 
 // Ducking time
 #define TIME_TO_DUCK		0.4f
+/* modified by harSens
 #define VEC_DUCK_HULL_MIN	-18
 #define VEC_DUCK_HULL_MAX	18
 #define VEC_DUCK_VIEW		12
+*/
+#define VEC_DUCK_HULL_MIN	-8
+#define VEC_DUCK_HULL_MAX	8
+#define VEC_DUCK_VIEW		8
+
 #define PM_DEAD_VIEWHEIGHT	-8
 #define MAX_CLIMB_SPEED		200
 #define STUCK_MOVEUP		1
 #define STUCK_MOVEDOWN		-1
+/* modified by harSens
 #define VEC_HULL_MIN		-36
 #define VEC_HULL_MAX		36
 #define VEC_VIEW		28
+*/
+#define VEC_HULL_MIN		-17
+#define VEC_HULL_MAX		17
+#define VEC_VIEW		10
 #define	STOP_EPSILON		0.1f
 
 #define CTEXTURESMAX		512			// max number of textures loaded
@@ -273,6 +284,11 @@ void PM_PlayStepSound( int step, float fvol )
 	static int iSkipStep = 0;
 	int irand;
 	vec3_t hvel;
+
+	//added by harSens:when we're flying, don't play stepsound
+	if (pmove->gravity < 0.1)
+		return;
+	//end of harSens add
 
 	pmove->iStepLeft = !pmove->iStepLeft;
 
@@ -579,7 +595,10 @@ void PM_UpdateStepSound( void )
 	speed = Length( pmove->velocity );
 
 	// determine if we are on a ladder
+	/*harSens: removed ladders
 	fLadder = ( pmove->movetype == MOVETYPE_FLY );// IsOnLadder();
+	*/
+	fLadder = false;
 
 	// UNDONE: need defined numbers for run, walk, crouch, crouch run velocities!!!!	
 	if( ( pmove->flags & FL_DUCKING) || fLadder )
@@ -1452,6 +1471,98 @@ void PM_WaterMove( void )
 
 /*
 ===================
+PM_PlayerFlyMove
+//added by harSens
+===================
+*/
+void PM_PlayerFlyMove (void)
+{
+	int		i;
+	vec3_t	wishvel;
+	float	wishspeed;
+	vec3_t	wishdir;
+	vec3_t	start, dest;
+	vec3_t  temp;
+	pmtrace_t	trace;
+
+	float speed, newspeed, addspeed, accelspeed;
+
+	//
+	// user intentions
+	//
+	for (i = 0; i < 3; i++)
+		wishvel[i] = pmove->forward[i] * pmove->cmd.forwardmove + pmove->right[i] * pmove->cmd.sidemove;
+
+	// Sinking after no other movement occurs
+	if (!pmove->cmd.forwardmove && !pmove->cmd.sidemove && !pmove->cmd.upmove)
+		wishvel[2] -= 1;		// drift towards bottom
+	else  // Go straight up by upmove amount.
+		wishvel[2] += pmove->cmd.upmove;
+
+	// Copy it over and determine speed
+	VectorCopy(wishvel, wishdir);
+	wishspeed = VectorNormalize(wishdir);
+
+	// Cap speed.
+	if (wishspeed > pmove->maxspeed)
+	{
+		VectorScale(wishvel, pmove->maxspeed / wishspeed, wishvel);
+		wishspeed = pmove->maxspeed;
+	}
+
+	VectorAdd (pmove->velocity, pmove->basevelocity, pmove->velocity);
+	// Air friction
+	VectorCopy(pmove->velocity, temp);
+	speed = VectorNormalize(temp);
+	if (speed)
+	{
+		newspeed = speed - pmove->frametime * speed * pmove->movevars->friction * pmove->friction;
+
+		if (newspeed < 0)
+			newspeed = 0;
+		VectorScale(pmove->velocity, newspeed / speed, pmove->velocity);
+	}
+	else
+		newspeed = 0;
+
+	//
+	// Air acceleration
+	//
+	if (wishspeed < 0.1f)
+		return;
+
+	addspeed = wishspeed - newspeed;
+	if (addspeed > 0)
+	{
+		VectorNormalize(wishvel);
+		accelspeed = pmove->movevars->accelerate * wishspeed * pmove->frametime * pmove->friction;
+		if (accelspeed > addspeed)
+			accelspeed = addspeed;
+
+		for (i = 0; i < 3; i++)
+			pmove->velocity[i] += accelspeed * wishvel[i];
+	}
+
+	// Now move
+	// assume it is a stair or a slope, so press down from stepheight above
+	VectorMA(pmove->origin, pmove->frametime, pmove->velocity, dest);
+	VectorCopy(dest, start);
+	start[2] += pmove->movevars->stepsize + 1;
+	trace = pmove->PM_PlayerTrace(start, dest, PM_NORMAL, -1);
+	if (!trace.startsolid && !trace.allsolid)	// FIXME: check steep slope?
+	{
+		// walked up the step, so just keep result and exit
+		VectorCopy(trace.endpos, pmove->origin);
+		return;
+	}
+
+	// Try moving straight along out normal path.
+	PM_FlyMove();
+}
+//end harSens add
+
+/*
+===================
 PM_AirMove
 
 ===================
@@ -2013,8 +2124,19 @@ void PM_Duck( void )
 	//int duckchange = buttonsChanged & IN_DUCK ? 1 : 0;
 	//int duckpressed = nButtonPressed & IN_DUCK ? 1 : 0;
 
+	//added by harSens: don't duck when this is set and not on da ground
+	if ( pmove->stop_duck_jump && (pmove->onground == -1) )
+		return;
+
 	if( pmove->cmd.buttons & IN_DUCK )
 	{
+		//harSens add:don't duck in flight
+		if (pmove->gravity < 0.1)
+		{
+			pmove->velocity[2] = -200;
+			return;
+		}
+		//end harSens add
 		pmove->oldbuttons |= IN_DUCK;
 	}
 	else
@@ -2488,6 +2610,10 @@ void PM_Jump( void )
 
 	qboolean cansuperjump = false;
 
+	//added by harSens: don't jump when this is set
+	if ( pmove->stop_duck_jump )
+		return;
+
 	if( pmove->dead )
 	{
 		pmove->oldbuttons |= IN_JUMP;	// don't jump again until released
@@ -2512,6 +2638,15 @@ void PM_Jump( void )
 		}
 		return;
 	}
+
+	//added by harSens: we're flying
+	if (pmove->gravity < 0.1)
+	{
+		pmove->onground = -1; // flying, not jumping
+		pmove->velocity[2] = 200;
+		return;
+	}
+	//end harSens add
 
 	// If we are in the water most of the way...
 	if( pmove->waterlevel >= 2 )
@@ -2595,7 +2730,12 @@ void PM_Jump( void )
 	{
 		// Adjust for super long jump module
 		// UNDONE -- note this should be based on forward angles, not current velocity.
+		/* modified by harSens
 		if( cansuperjump && ( pmove->cmd.buttons & IN_DUCK ) && ( pmove->flDuckTime > 0 ) &&
+			Length( pmove->velocity ) > 50 )
+		*/
+		if ( ( pmove->cmd.buttons & IN_DUCK ) &&
+			( pmove->flDuckTime > 0 ) &&
 			Length( pmove->velocity ) > 50 )
 		{
 			pmove->punchangle[0] = -5;
@@ -2605,16 +2745,25 @@ void PM_Jump( void )
 				pmove->velocity[i] = pmove->forward[i] * PLAYER_LONGJUMP_SPEED * 1.6f;
 			}
 
+			/*modified by harSens
 			pmove->velocity[2] = sqrt( 2.0f * 800.0f * 56.0f );
+			*/
+			pmove->velocity[2] = sqrt( 2.0f * 800.0f * 1000.0f );
 		}
 		else
 		{
+			/*modified by harSens
 			pmove->velocity[2] = sqrt( 2.0f * 800.0f * 45.0f );
+			*/
+			pmove->velocity[2] = sqrt( 2.0f * 800.0f * 1500.0f );
 		}
 	}
 	else
 	{
+		/* modified by harSens
 		pmove->velocity[2] = sqrt( 2.0f * 800.0f * 45.0f );
+		*/
+		pmove->velocity[2] = sqrt( 2.0f * 800.0f * 500.0f );
 	}
 
 	// Decay it for simulation
@@ -3034,7 +3183,11 @@ void PM_PlayerMove( qboolean server )
 		{
 			PM_LadderMove( pLadder );
 		}
+		/* modified by harSens
 		else if( pmove->movetype != MOVETYPE_WALK && pmove->movetype != MOVETYPE_NOCLIP )
+		*/
+		else if( pmove->movetype != MOVETYPE_WALK && pmove->movetype != MOVETYPE_NOCLIP
+			&& pmove->movetype != MOVETYPE_FLY )
 		{
 			// Clear ladder stuff unless player is noclipping
 			//  it will be set immediately again next frame if necessary
@@ -3065,7 +3218,9 @@ void PM_PlayerMove( qboolean server )
 		// Also, set MOVE_TYPE to walk, too.
 		if( pmove->cmd.buttons & IN_JUMP )
 		{
+			/*disabled by harSens
 			if( !pLadder )
+			*/
 			{
 				PM_Jump();
 			}
@@ -3077,7 +3232,16 @@ void PM_PlayerMove( qboolean server )
 
 		// Perform the move accounting for any base velocity.
 		VectorAdd( pmove->velocity, pmove->basevelocity, pmove->velocity );
+
+		/* modified by harSens
 		PM_FlyMove();
+		*/
+		if (pmove->gravity < 0.1)
+			PM_PlayerFlyMove();
+		else
+			PM_FlyMove();
+		//end harSens
+
 		VectorSubtract( pmove->velocity, pmove->basevelocity, pmove->velocity );
 		break;
 	case MOVETYPE_WALK:

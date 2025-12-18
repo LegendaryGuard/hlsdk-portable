@@ -93,8 +93,9 @@ void DLLEXPORT HUD_TxferLocalOverrides( struct entity_state_s *state, const stru
 	// Duck prevention
 	state->iuser3 = client->iuser3;
 
+	//disabled by harSens
 	// Fire prevention
-	state->iuser4 = client->iuser4;
+	//state->iuser4 = client->iuser4;
 }
 
 /*
@@ -211,8 +212,9 @@ void DLLEXPORT HUD_TxferPredictionData( struct entity_state_s *ps, const struct 
 		pcd->iuser3 = g_iUser3; // second target
 	}
 
+	//disabled by harSens
 	// Fire prevention
-	pcd->iuser4 					= ppcd->iuser4;
+	//pcd->iuser4 					= ppcd->iuser4;
 
 	pcd->fuser2					= ppcd->fuser2;
 	pcd->fuser3					= ppcd->fuser3;

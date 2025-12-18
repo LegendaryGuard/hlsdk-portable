@@ -34,6 +34,8 @@
 WEAPON *gpActiveSel;	// NULL means off, 1 means just the menu bar, otherwise
 						// this points to the active weapon menu item
 WEAPON *gpLastSel;		// Last weapon menu selection 
+//added by harSens
+WEAPON *gpLastActiveSel;
 
 client_sprite_t *GetSpriteList(client_sprite_t *pList, const char *psz, int iRes, int iCount);
 
@@ -233,6 +235,8 @@ DECLARE_MESSAGE( m_Ammo, AmmoPickup )	// flashes an ammo pickup record
 DECLARE_MESSAGE( m_Ammo, WeapPickup )    // flashes a weapon pickup record
 DECLARE_MESSAGE( m_Ammo, HideWeapon )	// hides the weapon, ammo, and crosshair displays temporarily
 DECLARE_MESSAGE( m_Ammo, ItemPickup )
+//added by harSens
+DECLARE_MESSAGE( m_Ammo, MaxKi )
 
 DECLARE_COMMAND( m_Ammo, Slot1 )
 DECLARE_COMMAND( m_Ammo, Slot2 )
@@ -280,6 +284,10 @@ int CHudAmmo::Init( void )
 	HOOK_COMMAND( "invnext", NextWeapon );
 	HOOK_COMMAND( "invprev", PrevWeapon );
 
+	//added by harSens
+	m_iMaxKi = 1000000;
+	m_iActiveWeaponFrame = 0;
+
 	Reset();
 
 	CVAR_CREATE( "hud_drawhistory_time", HISTORY_DRAW_TIME, 0 );
@@ -319,6 +327,9 @@ int CHudAmmo::VidInit( void )
 	ghsprBuckets = gHUD.GetSprite( m_HUD_bucket0 );
 	giBucketWidth = gHUD.GetSpriteRect( m_HUD_bucket0 ).right - gHUD.GetSpriteRect( m_HUD_bucket0 ).left;
 	giBucketHeight = gHUD.GetSpriteRect( m_HUD_bucket0 ).bottom - gHUD.GetSpriteRect( m_HUD_bucket0 ).top;
+
+	//added by harSens
+	m_HUD_ki = gHUD.GetSpriteIndex("ki");
 
 	gHR.iHistoryGap = gHUD.GetSpriteRect( m_HUD_bucket0 ).bottom - gHUD.GetSpriteRect( m_HUD_bucket0 ).top;
 
@@ -490,10 +501,20 @@ int CHudAmmo::MsgFunc_AmmoX( const char *pszName, int iSize, void *pbuf )
 	BEGIN_READ( pbuf, iSize );
 
 	int iIndex = READ_BYTE();
-	int iCount = READ_BYTE();
+	//changed by harSens
+	//int iCount = READ_BYTE();
+	int iCount = READ_LONG();
 
 	gWR.SetAmmo( iIndex, abs( iCount ) );
 
+	return 1;
+}
+
+//added by harSens
+int CHudAmmo::MsgFunc_MaxKi(const char *pszName, int iSize, void *pbuf)
+{
+	BEGIN_READ(pbuf, iSize);
+	m_iMaxKi = READ_LONG();
 	return 1;
 }
 
@@ -850,7 +871,10 @@ void CHudAmmo::UserCmd_PrevWeapon( void )
 //-------------------------------------------------------------------------
 int CHudAmmo::Draw( float flTime )
 {
+	/* modified by harSens
 	int a, x, y, r, g, b;
+	*/
+	int x, y, r, g, b;
 	int AmmoWidth;
 
 	if( !( gHUD.m_iWeaponBits & ( 1 << ( WEAPON_SUIT ) ) ) )
@@ -877,6 +901,7 @@ int CHudAmmo::Draw( float flTime )
 	if( ( pw->iAmmoType < 0 ) && ( pw->iAmmo2Type < 0 ) )
 		return 0;
 
+	/* removed by harSens
 	int iFlags = DHN_DRAWZERO; // draw 0 values
 
 	AmmoWidth = gHUD.GetSpriteRect( gHUD.m_HUD_number_0 ).right - gHUD.GetSpriteRect( gHUD.m_HUD_number_0 ).left;
@@ -885,15 +910,74 @@ int CHudAmmo::Draw( float flTime )
 
 	if( m_fFade > 0 )
 		m_fFade -= ( (float)gHUD.m_flTimeDelta * 20.0f );
+	*/
 
 	UnpackRGB( r, g, b, RGB_YELLOWISH );
 
+	/*modified by harSens
 	ScaleColors( r, g, b, a );
 
 	// Does this weapon have a clip?
 	y = ScreenHeight - gHUD.m_iFontHeight - gHUD.m_iFontHeight / 2;
 	y += gHUD.m_iHudNumbersYOffset; // a1ba: fix HL25 HUD vertical inconsistensy
+	*/
 
+	ScaleColors(r, g, b, 200);
+	int KiWidth = gHUD.GetSpriteRect(m_HUD_ki).right - gHUD.GetSpriteRect(m_HUD_ki).left;
+	int KiHeigth = gHUD.GetSpriteRect(m_HUD_ki).bottom - gHUD.GetSpriteRect(m_HUD_ki).top;
+	AmmoWidth = ScreenWidth * 0.25 - KiWidth;
+
+	y = ScreenHeight - KiHeigth * 3; //assume KiHeigt==HealthHeight
+	x = KiWidth / 2;
+
+	SPR_Set(gHUD.GetSprite(m_HUD_ki), r, g, b);
+	SPR_DrawAdditive(0, x, y, &gHUD.GetSpriteRect(m_HUD_ki));
+
+	//added by harSens: draw health bar
+	x += KiWidth + KiWidth / 2;
+
+	//draw outside lines
+	int width = AmmoWidth;
+	int heigth = KiHeigth;
+	UnpackRGB(r, g, b, RGB_GREENISH);
+	FillRGBA(x, y, width, 1, r, g, b, 255);
+	FillRGBA(x, y + heigth - 1, width, 1,r, g, b, 255);
+	FillRGBA(x, y + 1, 1, heigth - 1, r, g, b, 255);
+	FillRGBA(x + width - 1, y + 1, 1, heigth - 1, r, g, b, 255);
+	width -= 2;
+	heigth -= 2;
+	x++;
+	y++;
+
+	// draw numbers
+	UnpackRGB(r, g, b, RGB_WHITEISH);
+	int number_heigth = gHUD.GetSpriteRect(gHUD.m_HUD_number_0).bottom - gHUD.GetSpriteRect(gHUD.m_HUD_number_0).top;
+	int digit_width = gHUD.GetSpriteRect(gHUD.m_HUD_number_0).right - gHUD.GetSpriteRect(gHUD.m_HUD_number_0).left;
+	int number_width = digit_width * gHUD.GetNumWidth( gWR.CountAmmo(pw->iAmmoType), DHN_KI);
+	//check if number fits in bar		
+	if (number_heigth < heigth && number_width < width)
+	{
+		int number_y = y + (heigth - number_heigth) / 2;
+		int number_x = x + (width - number_width) / 2;
+		gHUD.DrawHudNumber(number_x, number_y, DHN_KI, gWR.CountAmmo(pw->iAmmoType), r, g, b);
+	}
+
+	int w = (gWR.CountAmmo(pw->iAmmoType) * width) / m_iMaxKi;
+
+	// Always show at least one pixel if we have health
+	if (w <= 0)
+		w = 1;
+
+	UnpackRGB(r, g, b, RGB_BLUEISH);
+	FillRGBA(x, y, w, heigth, r, g, b, 255);
+	x += w;
+	width -= w;
+
+	UnpackRGB(r, g, b, RGB_YELLOWISH);
+	FillRGBA(x, y, width, heigth, r, g, b, 128);
+
+	
+#if 0 // disabled by harSens
 	// Does weapon have any ammo at all?
 	if( m_pWeapon->iAmmoType > 0 )
 	{
@@ -929,8 +1013,10 @@ int CHudAmmo::Draw( float flTime )
 		else
 		{
 			// SPR_Draw a bullets only line
-			x = ScreenWidth - 4 * AmmoWidth - iIconWidth;
-			x = gHUD.DrawHudNumber( x, y, iFlags | DHN_3DIGITS, gWR.CountAmmo( pw->iAmmoType ), r, g, b );
+			// modified by harSens
+			//x = ScreenWidth - 4 * AmmoWidth - iIconWidth;
+			x = ScreenWidth - 10 * AmmoWidth - iIconWidth;
+			x = gHUD.DrawHudNumber(x, y, iFlags | DHN_KI, gWR.CountAmmo(pw->iAmmoType), r, g, b);
 		}
 
 		// Draw the ammo Icon
@@ -957,6 +1043,7 @@ int CHudAmmo::Draw( float flTime )
 			SPR_DrawAdditive(0, x, y - iOffset, &m_pWeapon->rcAmmo2 );
 		}
 	}
+#endif
 	return 1;
 }
 
@@ -1104,13 +1191,34 @@ int CHudAmmo::DrawWList( float flTime )
 				if( !p || !p->iId )
 					continue;
 
+				/* modified by harSens
 				UnpackRGB( r, g, b, RGB_YELLOWISH );
+				*/
+				UnpackRGB( r, g, b, RGB_WHITEISH );
 
 				// if active, then we must have ammo.
 				if( gpActiveSel == p )
 				{
 					SPR_Set( p->hActive, r, g, b );
+					/* modified by harSens
 					SPR_DrawAdditive( 0, x, y, &p->rcActive );
+					*/
+					if (gpActiveSel != gpLastActiveSel)
+					{
+						m_iActiveWeaponFrame = 0;
+						gpLastActiveSel = gpActiveSel;
+					}
+					SPR_Draw(m_iActiveWeaponFrame, x, y, &p->rcActive);
+
+					//limit to 1 frames/0.2sec
+					if (flTime < m_flLastWeaponDraw || flTime - m_flLastWeaponDraw > 0.2)
+					{
+						m_iActiveWeaponFrame++;
+						m_flLastWeaponDraw = flTime;
+					}
+					//make it cycle
+					if (m_iActiveWeaponFrame >= SPR_Frames(p->hActive))
+						m_iActiveWeaponFrame = 0;
 
 					SPR_Set( gHUD.GetSprite( m_HUD_selection ), r, g, b );
 					SPR_DrawAdditive( 0, x, y, &gHUD.GetSpriteRect( m_HUD_selection ) );
@@ -1118,6 +1226,7 @@ int CHudAmmo::DrawWList( float flTime )
 				else
 				{
 					// Draw Weapon if Red if no ammo
+					/* modified by harSens
 					if( gWR.HasAmmo( p ) )
 						ScaleColors( r, g, b, 192 );
 					else
@@ -1125,13 +1234,19 @@ int CHudAmmo::DrawWList( float flTime )
 						UnpackRGB( r, g, b, RGB_REDISH );
 						ScaleColors( r, g, b, 128 );
 					}
+					*/
 
 					SPR_Set( p->hInactive, r, g, b );
+					/* modified by harSens
 					SPR_DrawAdditive( 0, x, y, &p->rcInactive );
+					*/
+					SPR_Draw( 0, x, y, &p->rcInactive );
 				}
 
 				// Draw Ammo Bar
+				/*removed by harSens. no ammo bars in the esforces mod
 				DrawAmmoBar( p, x + giABWidth / 2, y, giABWidth, giABHeight );
+				*/
 				
 				y += p->rcActive.bottom - p->rcActive.top + 5;
 			}

@@ -21,6 +21,11 @@
 
 #define MAX_TEAMNAME_LENGTH		16
 #define MAX_TEAMS			32
+//added by harSens
+#define TEAM1_NAME "Good"
+#define TEAM2_NAME "Evil"
+#define GOOD_SKIN 0
+#define EVIL_SKIN 1
 
 #define TEAMPLAY_TEAMLISTLENGTH		MAX_TEAMS*MAX_TEAMNAME_LENGTH
 
@@ -48,6 +53,13 @@ public:
 	virtual BOOL IsValidTeam( const char *pTeamName );
 	const char *SetDefaultPlayerTeam( CBasePlayer *pPlayer );
 	virtual void ChangePlayerTeam( CBasePlayer *pPlayer, const char *pTeamName, BOOL bKill, BOOL bGib );
+
+	/**
+	* Let a player join a team (code made by Chip)
+	* @param CBasePlayer *pPlayer: The player who will join the team
+	* @param const char *pTeamName: Teamname
+	*/
+	virtual void JoinTeam( CBasePlayer *pPlayer, const char *pTeamName );
 
 private:
 	void RecountTeams( bool bResendInfo = FALSE );

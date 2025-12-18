@@ -422,6 +422,22 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 	vec3_t camAngles, camForward, camRight, camUp;
 	cl_entity_t *pwater;
 
+	//modified by harSens:right shoulder view 
+	if ( pparams->maxclients > 1 )
+	{
+		if (CL_IsThirdPerson()) //don't screw 1st person/spectator view :-)
+		{
+			scr_ofsx->value = VIEW_XOFF;
+			scr_ofsy->value = VIEW_YOFF;
+			scr_ofsz->value = VIEW_ZOFF;
+		}
+		else
+		{	scr_ofsx->value = 0.0;
+			scr_ofsy->value = 0.0;
+			scr_ofsz->value = 0.0;
+		}
+	}
+
 	if( gEngfuncs.IsSpectateOnly() )
 	{
 		ent = gEngfuncs.GetEntityByIndex( g_iUser2 );
