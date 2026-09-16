@@ -40,6 +40,10 @@ int g_iUser2 = 0;
 int g_iUser3 = 0;
 
 #include "vgui_ScorePanel.h"
+#include "pmtrace.h"
+#include "pm_defs.h"
+#include "event_api.h"
+#include "triangleapi.h"
 
 class CHLVoiceStatusHelper : public IVoiceStatusHelper
 {
@@ -385,6 +389,8 @@ void CHud::Init( void )
 	m_AmmoSecondary.Init();
 	m_TextMessage.Init();
 	m_StatusIcons.Init();
+	// ESFR - ESF Crosshair
+	m_EsfCrosshair.Init();
 	GetClientVoiceMgr()->Init(&g_VoiceStatusHelper, (vgui::Panel**)&gViewPort);
 
 	m_MOTD.Init();
@@ -580,6 +586,8 @@ void CHud::VidInit( void )
 	m_AmmoSecondary.VidInit();
 	m_TextMessage.VidInit();
 	m_StatusIcons.VidInit();
+	// ESFR - ESF Crosshair
+	m_EsfCrosshair.VidInit();
 	GetClientVoiceMgr()->VidInit();
 	m_MOTD.VidInit();
 	m_Scoreboard.VidInit();
@@ -779,4 +787,90 @@ bool CHud::UseVguiMOTD()
 bool CHud::UseVguiScoreBoard()
 {
 	return m_pCvarScoreboardVGUI && m_pCvarScoreboardVGUI->value;
+}
+
+//
+//-----------------------------------------------------
+//
+
+// ESFR - Crosshair state
+HSPRITE	m_hsprCrosshair;
+wrect_t	m_rcCrosshair;     // the sprite's source rect
+
+/**
+* Sets the crosshair sprite, overriding the engine's SetCrosshair.
+* k/l/m are accepted only for signature compatibility with the engine
+* function being overridden; the original source didn't use them either.
+*/
+void SetCrosshair( HSPRITE sprite, wrect_t size, int k, int l, int m )
+{
+	m_hsprCrosshair = sprite;
+	m_rcCrosshair = size;
+}
+
+#define ESF_CROSSHAIR_MAX_DIST 8192.0f
+
+int CHudEsfCrosshair::Init( void )
+{
+	gHUD.AddHudElem( this );
+	CHudBase::m_iFlags |= HUD_ACTIVE;
+	m_hsprCrosshair = 0;
+	return 1;
+}
+
+int CHudEsfCrosshair::VidInit( void )
+{
+	return 1;
+}
+
+int CHudEsfCrosshair::Draw( float flTime )
+{
+	if( !m_hsprCrosshair )
+		return 0;
+
+	// Hide for dead players and spectators
+	if( gHUD.m_fPlayerDead || g_iUser1 )
+		return 0;
+
+	cl_entity_t *local = gEngfuncs.GetLocalPlayer();
+	if( !local )
+		return 0;
+
+	// eye origin of the player (predicted)
+	vec3_t org, view_ofs;
+	VectorCopy( local->origin, org );
+	gEngfuncs.pEventAPI->EV_LocalPlayerViewheight( view_ofs );
+	VectorAdd( org, view_ofs, org );
+
+	// view direction of the player
+	vec3_t forward, end;
+	AngleVectors( gHUD.m_vecAngles, forward, NULL, NULL );
+	VectorMA( org, ESF_CROSSHAIR_MAX_DIST, forward, end );
+
+	// trace
+	pmtrace_t tr;
+	gEngfuncs.pEventAPI->EV_SetTraceHull( 2 );
+	gEngfuncs.pEventAPI->EV_SetSolidPlayers( local->index - 1 );
+	gEngfuncs.pEventAPI->EV_PlayerTrace( org, end, PM_NORMAL, -1, &tr );
+
+	// project the impact point to screen coords
+	vec3_t screen;
+	gEngfuncs.pTriAPI->WorldToScreen( tr.endpos, screen );
+	if( screen[2] <= 0.0f )
+		return 0; // behind the camera
+
+	int x = XPROJECT( screen[0] );
+	int y = YPROJECT( screen[1] );
+
+	// draw the sprite 2D, centered on (x, y), 
+	// using the sub-rect the weapon (or spectator) passed to SetCrosshair
+	int w = m_rcCrosshair.right - m_rcCrosshair.left;
+	int h = m_rcCrosshair.bottom - m_rcCrosshair.top;
+	if( w <= 0 || h <= 0 )
+		return 0;
+
+	SPR_Set( m_hsprCrosshair, 255, 255, 255 );
+	SPR_DrawAdditive( 0, x - w / 2, y - h / 2, &m_rcCrosshair );
+
+	return 1;
 }

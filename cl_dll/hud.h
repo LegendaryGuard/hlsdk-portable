@@ -528,6 +528,19 @@ private:
 //
 //-----------------------------------------------------
 //
+
+// ESFR - ESF Crosshair
+class CHudEsfCrosshair : public CHudBase
+{
+public:
+	int Init( void );
+	int VidInit( void );
+	int Draw( float flTime );
+};
+
+//
+//-----------------------------------------------------
+//
 class CHud
 {
 private:
@@ -615,6 +628,8 @@ public:
 	CHudStatusIcons m_StatusIcons;
 	CHudScoreboard	m_Scoreboard;
 	CHudMOTD	m_MOTD;
+	// ESFR - ESF Crosshair
+	CHudEsfCrosshair	m_EsfCrosshair;
 
 	void Init( void );
 	void VidInit( void );
