@@ -41,6 +41,8 @@ extern "C"
 {
 	int CL_IsThirdPerson( void );
 	void CL_CameraOffset( float *ofs );
+	// ESFR - Extra offsets
+	void CL_CameraExtraOffset( float *ofs );
 
 	void DLLEXPORT V_CalcRefdef( struct ref_params_s *pparams );
 
@@ -287,6 +289,11 @@ void V_CalcGunAngle( struct ref_params_s *pparams )
 	if( !viewent )
 		return;
 
+	// ESFR - No viewmodel kick shot
+	pparams->crosshairangle[PITCH] = 0.0f;
+	pparams->crosshairangle[YAW] = 0.0f;
+	pparams->crosshairangle[ROLL] = 0.0f;
+
 	viewent->angles[YAW] = pparams->viewangles[YAW] + pparams->crosshairangle[YAW];
 	viewent->angles[PITCH] = -pparams->viewangles[PITCH] + pparams->crosshairangle[PITCH] * 0.25f;
 	viewent->angles[ROLL] -= v_idlescale * sin( pparams->time * v_iroll_cycle.value ) * v_iroll_level.value;
@@ -437,7 +444,9 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 
 	// transform the view offset by the model's matrix to get the offset from
 	// model origin for the view
-	bob = V_CalcBob( pparams );
+	// ESFR - Don't bob at all
+	bob = 0.0f;
+	// bob = V_CalcBob( pparams );
 
 	// refresh position
 	VectorCopy( pparams->simorg, pparams->vieworg );
@@ -553,10 +562,14 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 	if( CL_IsThirdPerson() )
 	{
 		vec3_t ofs;
+		// ESFR - Extra offsets
+		vec3_t extraOfs;
 
 		ofs[0] = ofs[1] = ofs[2] = 0.0f;
+		extraOfs[0] = extraOfs[1] = extraOfs[2] = 0.0f;
 
 		CL_CameraOffset( (float *)&ofs );
+		CL_CameraExtraOffset( (float *)&extraOfs );
 
 		VectorCopy( ofs, camAngles );
 		camAngles[ROLL]	= 0;
@@ -565,7 +578,15 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 
 		for( i = 0; i < 3; i++ )
 		{
-			pparams->vieworg[i] += -ofs[2] * camForward[i];
+			// ESFR - Main distance along the camera's forward axis, 
+			// plus the cam_xoffset/cam_yoffset/cam_zoffset point offset 
+			// along the camera's own axes
+			// matching ESF's layout: 
+			// x = right, y = extra forward/back, z = up/down
+			pparams->vieworg[i] += -ofs[2] * camForward[i]
+				+ extraOfs[0] * camRight[i]
+				+ extraOfs[1] * camForward[i]
+				+ extraOfs[2] * camUp[i];
 		}
 	}
 
@@ -625,11 +646,12 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 		view->origin[2] += 0.5f;
 	}
 
+	// ESFR - Don't apply weapon-fire punch/kick to the camera.
 	// Add in the punchangle, if any
-	VectorAdd( pparams->viewangles, pparams->punchangle, pparams->viewangles );
+	//VectorAdd( pparams->viewangles, pparams->punchangle, pparams->viewangles );
 
 	// Include client side punch, too
-	VectorAdd( pparams->viewangles, (float *)&g_ev_punchangle, pparams->viewangles );
+	//VectorAdd( pparams->viewangles, (float *)&g_ev_punchangle, pparams->viewangles );
 
 	V_DropPunchAngle( pparams->frametime, (float *)&g_ev_punchangle );
 

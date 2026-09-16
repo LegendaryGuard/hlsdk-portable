@@ -33,6 +33,7 @@ extern "C"
 
 #include <string.h>
 #include "vcs_info.h"
+#include "camera.h"
 
 cl_enginefunc_t gEngfuncs;
 CHud gHUD;
@@ -206,6 +207,9 @@ int DLLEXPORT HUD_VidInit( void )
 	gHUD.VidInit();
 
 	VGui_Startup();
+
+	// ESFR - Start third person camera
+	CAM_ClearStates();
 
 	return 1;
 }
