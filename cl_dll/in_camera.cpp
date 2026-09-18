@@ -50,13 +50,9 @@ extern cl_enginefunc_t gEngfuncs;
 #define CAM_DIST_DELTA 1.0f
 #define CAM_ANGLE_DELTA 2.5f
 #define CAM_ANGLE_SPEED 2.5f
-#define CAM_DIST_OFFSET 88.0f	// ESFR - Add offset
-#define CAM_MIN_DIST (40.0f + CAM_DIST_OFFSET)	// ESFR - Before 30.0f
+#define CAM_MIN_DIST 0.0f	// ESFR - Before 30.0f
 #define CAM_ANGLE_MOVE 0.5f
 #define MAX_ANGLE_DIFF 10.0f
-// ESFR - Any trace-shortened distance above this stays in third person, 
-// just pulled in closer
-#define CAM_COLLIDE_MIN_DIST 20.0f
 #define PITCH_MAX 90.0f
 #define PITCH_MIN 0.0f
 #define YAW_MAX  135.0f
@@ -98,8 +94,6 @@ vec3_t cam_extra_ofs;
 
 // ESFR - Global camera angles
 vec3_t g_CameraAngles;
-
-static float switchtime = 0.0f;
 
 // ESFR - Which view mode is actively requested
 int cam_idealview = VIEW_THIRDPERSON;
@@ -210,59 +204,7 @@ void DLLEXPORT CAM_Think( void )
 	}
 
 	if( !cam_thirdperson )
-	{
-		// ESFR - Force-switched to first person because something solid was blocking the camera
-		if( cam_idealview == VIEW_THIRDPERSON && gEngfuncs.GetClientTime() - switchtime > 0.5f )
-		{
-			cl_entity_t *localPlayer = gEngfuncs.GetLocalPlayer();
-			if( localPlayer && gEngfuncs.pEventAPI )
-			{
-				pmtrace_t tr;
-				vec3_t camForwardTrace, camRightTrace, camUpTrace;
-				vec3_t checkAngles;
-
-				// angle check to avoid being on first person in a short distance 
-				// while going far from the trace
-				vec3_t viewangles;
-				gEngfuncs.GetViewAngles( (float *)viewangles );
-				checkAngles[PITCH] = cam_idealpitch->value + viewangles[PITCH];
-				checkAngles[YAW] = cam_idealyaw->value + viewangles[YAW];
-				AngleVectors( checkAngles, camForwardTrace, camRightTrace, camUpTrace );
-
-				vec3_t view_ofs;
-				gEngfuncs.pEventAPI->EV_LocalPlayerViewheight( view_ofs );
-
-				vec3_t player_origin;
-				VectorAdd( localPlayer->origin, view_ofs, player_origin );
-
-				// trace the full ideal distance, then derive how much
-				// clear space there actually is
-				float idealDist = cam_idealdist->value + CAM_DIST_OFFSET;
-				vec3_t camera_origin;
-				VectorMA( player_origin, -idealDist, camForwardTrace, camera_origin );
-
-				gEngfuncs.pEventAPI->EV_SetSolidPlayers( localPlayer->index - 1 );
-				// a wide hull's bottom edge can catch small ledges/steps in the floor
-				// that the camera should pass clean over, pulling the camera in
-				// for no visible reason (e.g. walking over a low platform)
-				gEngfuncs.pEventAPI->EV_SetTraceHull( 2 );
-				gEngfuncs.pEventAPI->EV_PlayerTrace( player_origin, camera_origin, PM_NORMAL, -1, &tr );
-
-				if( !tr.startsolid && !tr.allsolid )
-				{
-					// clear distance at full extension, or shortened if there's a wall
-					float clearDist = idealDist;
-					if( tr.fraction < 0.999f )
-						clearDist = tr.fraction * idealDist;
-
-					// only flip back to third person once there's room for a usable camera
-					if( clearDist >= CAM_COLLIDE_MIN_DIST )
-						CAM_ToThirdPerson();
-				}
-			}
-		}
 		return;
-	}
 #if LATER
 	if( cam_contain->value )
 	{
@@ -369,20 +311,19 @@ void DLLEXPORT CAM_Think( void )
 	if( CL_KeyState( &cam_in ) )
 	{
 		dist -= CAM_DIST_DELTA;
-		// ESFR - Stops zoom-in ~88 units short. Clamp to the pre-offset floor.
-		if( dist < -80 )
+		if( dist < CAM_MIN_DIST )
 		{
 			// If we go back into first person, reset the angle
 			camAngles[PITCH] = 0;
 			camAngles[YAW] = 0;
-			dist = -80;
+			dist = CAM_MIN_DIST;
 		}
 	}
 	else if( CL_KeyState( &cam_out ) ) {
 		dist += CAM_DIST_DELTA;
-		// ESFR - Limit to 256
-		if( dist > 256.0f )
-			dist = 256.0f;
+		// ESFR - Limit to 128
+		if( dist > 128.0f )
+			dist = 128.0f;
 	}
 
 	if( cam_distancemove )
@@ -463,78 +404,96 @@ void DLLEXPORT CAM_Think( void )
 		if( camAngles[PITCH] - viewangles[PITCH] != cam_idealpitch->value )
 			camAngles[PITCH] = MoveToward( camAngles[PITCH], cam_idealpitch->value + viewangles[PITCH], CAM_ANGLE_SPEED );
 
-		// ESFR - Apply offset
-		float	idealDist = cam_idealdist->value + CAM_DIST_OFFSET;
-		if( fabs( camAngles[2] - idealDist ) < 2.0f )
-			camAngles[2] = idealDist;
+		if( fabs( camAngles[2] - cam_idealdist->value ) < 2.0f )
+			camAngles[2] = cam_idealdist->value;
 		else
-			camAngles[2] += ( idealDist - camAngles[2] ) * 0.25f;
+			camAngles[2] += ( cam_idealdist->value - camAngles[2] ) * 0.25f;
 	}
 
-	// ESFR - Trace correctly the camera while there's something solid
+	// ESFR - Trace from the camera pivot
 	{
 		pmtrace_t tr;
-		vec3_t camForwardTrace, camRightTrace, camUpTrace;
-		AngleVectors( camAngles, camForwardTrace, camRightTrace, camUpTrace );
+		vec3_t camForward, camRight, camUp;
+		AngleVectors( camAngles, camForward, camRight, camUp );
 
+		// Defaults: nothing blocking, use the full distance
+		float tracedDist = dist;
+		float tracedFactor = 1.0f;
 		cl_entity_t *localPlayer = gEngfuncs.GetLocalPlayer();
 		if( localPlayer && gEngfuncs.pEventAPI )
 		{
 			vec3_t view_ofs;
 			gEngfuncs.pEventAPI->EV_LocalPlayerViewheight( view_ofs );
 
-			vec3_t player_origin;
-			VectorAdd( localPlayer->origin, view_ofs, player_origin );
+			vec3_t pivot;
+			VectorAdd( localPlayer->origin, view_ofs, pivot );
 
-			float traceDist = camAngles[2];
-			vec3_t camera_origin;
-			VectorMA( player_origin, -traceDist, camForwardTrace, camera_origin );
+			vec3_t fullOfs;
+			VectorScale( camForward, -dist, fullOfs );
+			VectorMA( fullOfs, cam_xoffset->value, camRight, fullOfs );
+			VectorMA( fullOfs, cam_yoffset->value, camForward, fullOfs );
+			VectorMA( fullOfs, cam_zoffset->value, camUp, fullOfs );
+
+			vec3_t camPos;
+			VectorAdd( pivot, fullOfs, camPos );
 
 			gEngfuncs.pEventAPI->EV_SetSolidPlayers( localPlayer->index - 1 );
-			// a wide hull's bottom edge can catch small ledges/steps in the floor
-			// that the camera should pass clean over, pulling the camera in
-			// for no visible reason (e.g. walking over a low platform)
-			gEngfuncs.pEventAPI->EV_SetTraceHull( 2 );
-			gEngfuncs.pEventAPI->EV_PlayerTrace( player_origin, camera_origin, PM_NORMAL, -1, &tr );
+			gEngfuncs.pEventAPI->EV_SetTraceHull( 0 );	// point-sized probe for the camera
+			gEngfuncs.pEventAPI->EV_PlayerTrace( pivot, camPos, PM_NORMAL, -1, &tr );
 
-			if( !tr.startsolid && !tr.allsolid )
-			{
-				// only shorten if the trace actually found something in the way
-				// (fraction meaningfully < 1.0) — applying frac*dist
-				// unconditionally would let float rounding nibble away at the
-				// distance every frame even with a fully clear line of sight
-				qboolean bShortenedByTrace = false;
-				if( tr.fraction < 0.999f )
-				{
-					bShortenedByTrace = true;
-					traceDist = tr.fraction * traceDist;
-					VectorMA( player_origin, -traceDist, camForwardTrace, camera_origin );
-					gEngfuncs.pEventAPI->EV_PlayerTrace( player_origin, camera_origin, PM_NORMAL, -1, &tr );
-				}
+			float frac = 1.0f;
+			if( tr.startsolid || tr.allsolid )
+				frac = 0.0f;
+			else if( tr.fraction < 1.0f )
+				frac = tr.fraction;
 
-				// Walking straight into a wall shortens traceDist smoothly down
-				// toward 0 — that's expected and should just pull the camera in
-				if( ( ( bShortenedByTrace && traceDist < CAM_COLLIDE_MIN_DIST ) || tr.fraction < 1.0f ) )
-				{
-					// Still too close / blocked even at the shortened distance: force first person.
-					switchtime = gEngfuncs.GetClientTime();
-					if( cam_thirdperson )
-						cam_thirdperson = 0;
-				}
-				else
-				{
-					camAngles[2] = traceDist;
-					if( !cam_thirdperson && cam_idealview == VIEW_THIRDPERSON )
-					{
-						// Clear now: allow returning to third person, but only
-						// after the cooldown, so we don't pogo between 1st/3rd
-						// person while grazing a wall.
-						if( gEngfuncs.GetClientTime() - switchtime > 0.5f )
-							CAM_ToThirdPerson();
-					}
-				}
-			}
+			// Real length of the ray so the skin doesn't depend on the forward
+			// component alone
+			float totalLen = sqrt( DotProduct( fullOfs, fullOfs ) );
+			if( totalLen < 1e-4f )
+				totalLen = 1e-4f;
+
+			// Pull in a few units from the impact so the near plane doesn't clip
+			float hitLen = frac * totalLen - 4.0f;
+			if( hitLen < 0.0f )
+				hitLen = 0.0f;
+
+			// Minimum distance from the pivot
+			const float MIN_CAM_DIST = 16.0f;
+			if( hitLen < MIN_CAM_DIST )
+				hitLen = MIN_CAM_DIST;
+
+			// hitLen is measured along the fullOfs ray
+			float forwardScale = dist / totalLen;
+			tracedDist = hitLen * forwardScale;
+			tracedFactor = hitLen / totalLen;
 		}
+
+		// Smooth: snap in
+		static float smoothedDist = -1.0f;
+		static float smoothedFactor =  1.0f;
+		if( smoothedDist < 0.0f )
+		{
+			smoothedDist = tracedDist;
+			smoothedFactor = tracedFactor;
+		}
+		else if( tracedDist < smoothedDist )
+		{
+			smoothedDist = tracedDist;
+			smoothedFactor = tracedFactor;
+		}
+		else
+		{
+			smoothedDist += ( tracedDist - smoothedDist ) * 0.1f;
+			smoothedFactor += ( tracedFactor - smoothedFactor ) * 0.1f;
+		}
+
+		camAngles[2] = smoothedDist;
+
+		// scale the extra offsets
+		cam_extra_ofs[0] = smoothedFactor * cam_xoffset->value;
+		cam_extra_ofs[1] = smoothedFactor * cam_yoffset->value;
+		cam_extra_ofs[2] = smoothedFactor * cam_zoffset->value;
 	}
 	// synchronize distance by trace
 	dist = camAngles[2];
@@ -563,13 +522,6 @@ void DLLEXPORT CAM_Think( void )
 	cam_ofs[0] = camAngles[0];
 	cam_ofs[1] = camAngles[1];
 	cam_ofs[2] = dist;
-
-	// ESFR - Camera point offset, read fresh from the cvars each frame so
-	// they can be tweaked live; consumed in view.cpp along camRight/camForward/camUp
-	// (cam_xoffset = right, cam_yoffset = extra forward on top of cam_ofs[2], cam_zoffset = up)
-	cam_extra_ofs[0] = cam_xoffset->value;
-	cam_extra_ofs[1] = cam_yoffset->value;
-	cam_extra_ofs[2] = cam_zoffset->value;
 
 	// ESFR - Save camera angles so that other modules can read them
 	VectorCopy( camAngles, g_CameraAngles );
@@ -746,7 +698,7 @@ void CAM_ClearStates( void )
 
 	cam_ofs[0] = 0.0;
 	cam_ofs[1] = 0.0;
-	cam_ofs[2] = CAM_MIN_DIST;
+	cam_ofs[2] = 40.0f;
 
 	// ESFR - Extra offsets
 	cam_extra_ofs[0] = cam_xoffset ? cam_xoffset->value : 0.0f;
@@ -755,7 +707,7 @@ void CAM_ClearStates( void )
 
 	cam_idealpitch->value = viewangles[PITCH];
 	cam_idealyaw->value = viewangles[YAW];
-	cam_idealdist->value = CAM_MIN_DIST - CAM_DIST_OFFSET; // ESFR - Apply offset
+	cam_idealdist->value = 40.0f;
 
 	// ESFR - Force third person camera at the start
 	gEngfuncs.Cvar_SetValue( "cam_command", CAM_COMMAND_TOTHIRDPERSON );

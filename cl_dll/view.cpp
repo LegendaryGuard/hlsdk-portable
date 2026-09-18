@@ -588,6 +588,8 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 				+ extraOfs[1] * camForward[i]
 				+ extraOfs[2] * camUp[i];
 		}
+		// ESFR - Adjust height view to -20
+		pparams->vieworg[2] -= 20.0f;
 	}
 
 	// Give gun our viewangles
