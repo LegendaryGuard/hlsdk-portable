@@ -856,8 +856,6 @@ int CHudEsfCrosshair::Draw( float flTime )
 	// project the impact point to screen coords
 	vec3_t screen;
 	gEngfuncs.pTriAPI->WorldToScreen( tr.endpos, screen );
-	if( screen[2] <= 0.0f )
-		return 0; // behind the camera
 
 	int x = XPROJECT( screen[0] );
 	int y = YPROJECT( screen[1] );
