@@ -531,9 +531,7 @@ void DLLEXPORT HUD_CreateEntities( void )
 	// Add in any game specific objects
 	Game_AddObjects();
 
-#if USE_VGUI
 	GetClientVoiceMgr()->CreateEntities();
-#endif
 }
 
 /*
