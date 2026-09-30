@@ -208,7 +208,7 @@ int DLLEXPORT HUD_VidInit( void )
 
 	VGui_Startup();
 
-	// ESFR - Start third person camera
+	// ESF - Start third person camera
 	CAM_ClearStates();
 
 	return 1;

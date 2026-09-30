@@ -41,7 +41,7 @@ extern "C"
 {
 	int CL_IsThirdPerson( void );
 	void CL_CameraOffset( float *ofs );
-	// ESFR - Extra offsets
+	// ESF - Extra offsets
 	void CL_CameraExtraOffset( float *ofs );
 
 	void DLLEXPORT V_CalcRefdef( struct ref_params_s *pparams );
@@ -289,7 +289,7 @@ void V_CalcGunAngle( struct ref_params_s *pparams )
 	if( !viewent )
 		return;
 
-	// ESFR - No viewmodel kick shot
+	// ESF - No viewmodel kick shot
 	pparams->crosshairangle[PITCH] = 0.0f;
 	pparams->crosshairangle[YAW] = 0.0f;
 	pparams->crosshairangle[ROLL] = 0.0f;
@@ -444,7 +444,7 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 
 	// transform the view offset by the model's matrix to get the offset from
 	// model origin for the view
-	// ESFR - Don't bob at all
+	// ESF - Don't bob at all
 	bob = 0.0f;
 	// bob = V_CalcBob( pparams );
 
@@ -562,7 +562,7 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 	if( CL_IsThirdPerson() )
 	{
 		vec3_t ofs;
-		// ESFR - Extra offsets
+		// ESF - Extra offsets
 		vec3_t extraOfs;
 
 		ofs[0] = ofs[1] = ofs[2] = 0.0f;
@@ -578,7 +578,7 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 
 		for( i = 0; i < 3; i++ )
 		{
-			// ESFR - Main distance along the camera's forward axis, 
+			// ESF - Main distance along the camera's forward axis, 
 			// plus the cam_xoffset/cam_yoffset/cam_zoffset point offset 
 			// along the camera's own axes
 			// matching ESF's layout: 
@@ -588,8 +588,8 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 				+ extraOfs[1] * camForward[i]
 				+ extraOfs[2] * camUp[i];
 		}
-		// ESFR - Adjust height view to -20
-		pparams->vieworg[2] -= 20.0f;
+		// ESF - Adjust height view to -21.675
+		pparams->vieworg[2] -= 21.675f;
 	}
 
 	// Give gun our viewangles
@@ -648,7 +648,7 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 		view->origin[2] += 0.5f;
 	}
 
-	// ESFR - Don't apply weapon-fire punch/kick to the camera.
+	// ESF - Don't apply weapon-fire punch/kick to the camera.
 	// Add in the punchangle, if any
 	//VectorAdd( pparams->viewangles, pparams->punchangle, pparams->viewangles );
 

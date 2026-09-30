@@ -13,7 +13,7 @@
 
 // pitch, yaw, dist
 extern vec3_t cam_ofs;
-// ESFR - Camera point offset, relative to the camera's own axes,
+// ESF - Camera point offset, relative to the camera's own axes,
 // matching ESF's layout:
 // [0] = right/left (cam_xoffset), 
 // [1] = extra forward/back added on top of cam_ofs[2] (cam_yoffset), 
@@ -22,7 +22,7 @@ extern vec3_t cam_extra_ofs;
 // Using third person camera
 extern int cam_thirdperson;
 
-// ESFR - View mode constants
+// ESF - View mode constants
 #define VIEW_FIRSTPERSON 0
 #define VIEW_THIRDPERSON 1
 

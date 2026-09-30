@@ -82,7 +82,7 @@ inline struct cvar_s *CVAR_CREATE( const char *cv, const char *val, const int fl
 #define GetScreenInfo ( *gEngfuncs.pfnGetScreenInfo )
 #define ServerCmd ( *gEngfuncs.pfnServerCmd )
 #define ClientCmd ( *gEngfuncs.pfnClientCmd )
-// ESFR - ESF Crosshair
+// ESF - ESF Crosshair
 //#define SetCrosshair ( *gEngfuncs.pfnSetCrosshair )
 extern void SetCrosshair( HSPRITE sprite, wrect_t size, int k, int l, int m );
 #define AngleVectors ( *gEngfuncs.pfnAngleVectors )

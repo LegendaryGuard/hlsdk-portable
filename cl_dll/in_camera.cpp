@@ -39,7 +39,7 @@ extern "C"
 	void DLLEXPORT CAM_Think( void );
 	int DLLEXPORT CL_IsThirdPerson( void );
 	void DLLEXPORT CL_CameraOffset( float *ofs );
-	// ESFR - Extra offsets
+	// ESF - Extra offsets
 	void DLLEXPORT CL_CameraExtraOffset( float *ofs );
 }
 
@@ -50,7 +50,7 @@ extern cl_enginefunc_t gEngfuncs;
 #define CAM_DIST_DELTA 1.0f
 #define CAM_ANGLE_DELTA 2.5f
 #define CAM_ANGLE_SPEED 2.5f
-#define CAM_MIN_DIST 0.0f	// ESFR - Before 30.0f
+#define CAM_MIN_DIST 0.0f	// ESF - Before 30.0f
 #define CAM_ANGLE_MOVE 0.5f
 #define MAX_ANGLE_DIFF 10.0f
 #define PITCH_MAX 90.0f
@@ -74,7 +74,7 @@ cvar_t	*cam_idealpitch;
 cvar_t	*cam_idealdist;
 cvar_t	*cam_contain;
 
-// ESFR - Camera point offset along the camera's own right/up/forward axes
+// ESF - Camera point offset along the camera's own right/up/forward axes
 cvar_t	*cam_xoffset;
 cvar_t	*cam_yoffset;
 cvar_t	*cam_zoffset;
@@ -89,13 +89,13 @@ cvar_t	*c_mindistance;
 // pitch, yaw, dist
 vec3_t cam_ofs;
 
-// ESFR - Camera point offset (right, up, extra-forward)
+// ESF - Camera point offset (right, up, extra-forward)
 vec3_t cam_extra_ofs;
 
-// ESFR - Global camera angles
+// ESF - Global camera angles
 vec3_t g_CameraAngles;
 
-// ESFR - Which view mode is actively requested
+// ESF - Which view mode is actively requested
 int cam_idealview = VIEW_THIRDPERSON;
 
 // In third person
@@ -186,7 +186,7 @@ void DLLEXPORT CAM_Think( void )
 #endif
 	vec3_t viewangles;
 
-	// ESFR - Don't force the camera on multiplayer
+	// ESF - Don't force the camera on multiplayer
 	// if( gEngfuncs.GetMaxClients() > 1 && CL_IsThirdPerson() )
 	//	CAM_ToFirstPerson();
 
@@ -321,7 +321,7 @@ void DLLEXPORT CAM_Think( void )
 	}
 	else if( CL_KeyState( &cam_out ) ) {
 		dist += CAM_DIST_DELTA;
-		// ESFR - Limit to 128
+		// ESF - Limit to 128
 		if( dist > 128.0f )
 			dist = 128.0f;
 	}
@@ -410,11 +410,17 @@ void DLLEXPORT CAM_Think( void )
 			camAngles[2] += ( cam_idealdist->value - camAngles[2] ) * 0.25f;
 	}
 
-	// ESFR - Trace from the camera pivot
+	// ESF - Trace from the camera pivot
 	{
 		pmtrace_t tr;
 		vec3_t camForward, camRight, camUp;
-		AngleVectors( camAngles, camForward, camRight, camUp );
+		vec3_t traceAngles;
+
+		// camAngles[2] holds the distance, not a roll.
+		// V_CalcNormalRefdef zeroes it too, so both sides use the same axes
+		VectorCopy( camAngles, traceAngles );
+		traceAngles[ROLL] = 0.0f;
+		AngleVectors( traceAngles, camForward, camRight, camUp );
 
 		// Defaults: nothing blocking, use the full distance
 		float tracedDist = dist;
@@ -427,6 +433,8 @@ void DLLEXPORT CAM_Think( void )
 
 			vec3_t pivot;
 			VectorAdd( localPlayer->origin, view_ofs, pivot );
+			// Same drop as V_CalcNormalRefdef, applied BEFORE building the ray end
+			pivot[2] -= 21.675f;
 
 			vec3_t fullOfs;
 			VectorScale( camForward, -dist, fullOfs );
@@ -434,66 +442,36 @@ void DLLEXPORT CAM_Think( void )
 			VectorMA( fullOfs, cam_yoffset->value, camForward, fullOfs );
 			VectorMA( fullOfs, cam_zoffset->value, camUp, fullOfs );
 
+			float totalLen = sqrt( DotProduct( fullOfs, fullOfs ) );
+
 			vec3_t camPos;
 			VectorAdd( pivot, fullOfs, camPos );
 
+			gEngfuncs.pEventAPI->EV_SetUpPlayerPrediction( false, true );
+			gEngfuncs.pEventAPI->EV_PushPMStates();
 			gEngfuncs.pEventAPI->EV_SetSolidPlayers( localPlayer->index - 1 );
-			gEngfuncs.pEventAPI->EV_SetTraceHull( 0 );	// point-sized probe for the camera
+			gEngfuncs.pEventAPI->EV_SetTraceHull( 2 );	// point hull
 			gEngfuncs.pEventAPI->EV_PlayerTrace( pivot, camPos, PM_NORMAL, -1, &tr );
+			gEngfuncs.pEventAPI->EV_PopPMStates();
 
-			float frac = 1.0f;
-			if( tr.startsolid || tr.allsolid )
-				frac = 0.0f;
-			else if( tr.fraction < 1.0f )
-				frac = tr.fraction;
+			float frac = tr.fraction;
 
-			// Real length of the ray so the skin doesn't depend on the forward
-			// component alone
-			float totalLen = sqrt( DotProduct( fullOfs, fullOfs ) );
-			if( totalLen < 1e-4f )
-				totalLen = 1e-4f;
+			// Keep a small skin off the surface, but let it reach the pivot
+			float hitLen = frac * totalLen;
 
-			// Pull in a few units from the impact so the near plane doesn't clip
-			float hitLen = frac * totalLen - 4.0f;
-			if( hitLen < 0.0f )
-				hitLen = 0.0f;
+			//tracedDist = hitLen * ( dist / totalLen );
+			//tracedFactor = hitLen / totalLen;
 
-			// Minimum distance from the pivot
-			const float MIN_CAM_DIST = 16.0f;
-			if( hitLen < MIN_CAM_DIST )
-				hitLen = MIN_CAM_DIST;
-
-			// hitLen is measured along the fullOfs ray
-			float forwardScale = dist / totalLen;
-			tracedDist = hitLen * forwardScale;
-			tracedFactor = hitLen / totalLen;
+			tracedDist = hitLen * ( dist / totalLen );
+			tracedFactor = frac;
 		}
 
-		// Smooth: snap in
-		static float smoothedDist = -1.0f;
-		static float smoothedFactor =  1.0f;
-		if( smoothedDist < 0.0f )
-		{
-			smoothedDist = tracedDist;
-			smoothedFactor = tracedFactor;
-		}
-		else if( tracedDist < smoothedDist )
-		{
-			smoothedDist = tracedDist;
-			smoothedFactor = tracedFactor;
-		}
-		else
-		{
-			smoothedDist += ( tracedDist - smoothedDist ) * 0.1f;
-			smoothedFactor += ( tracedFactor - smoothedFactor ) * 0.1f;
-		}
-
-		camAngles[2] = smoothedDist;
+		camAngles[2] = tracedDist;
 
 		// scale the extra offsets
-		cam_extra_ofs[0] = smoothedFactor * cam_xoffset->value;
-		cam_extra_ofs[1] = smoothedFactor * cam_yoffset->value;
-		cam_extra_ofs[2] = smoothedFactor * cam_zoffset->value;
+		cam_extra_ofs[0] = tracedFactor * cam_xoffset->value;
+		cam_extra_ofs[1] = tracedFactor * cam_yoffset->value;
+		cam_extra_ofs[2] = tracedFactor * cam_zoffset->value;
 	}
 	// synchronize distance by trace
 	dist = camAngles[2];
@@ -523,7 +501,7 @@ void DLLEXPORT CAM_Think( void )
 	cam_ofs[1] = camAngles[1];
 	cam_ofs[2] = dist;
 
-	// ESFR - Save camera angles so that other modules can read them
+	// ESF - Save camera angles so that other modules can read them
 	VectorCopy( camAngles, g_CameraAngles );
 	g_CameraAngles[2] = 0.0f;
 }
@@ -595,7 +573,7 @@ void CAM_ToThirdPerson( void )
 {
 	vec3_t viewangles;
 
-	// ESFR - Allow third person camera on multiplayer
+	// ESF - Allow third person camera on multiplayer
 	//#if !_DEBUG
 	//	if( gEngfuncs.GetMaxClients() > 1 )
 	//	{
@@ -658,10 +636,10 @@ void CAM_Init( void )
 	cam_snapto			= gEngfuncs.pfnRegisterVariable( "cam_snapto", "0", 0 );	 // snap to thirdperson view
 	cam_idealyaw			= gEngfuncs.pfnRegisterVariable( "cam_idealyaw", "0", 0 );	 // thirdperson yaw
 	cam_idealpitch			= gEngfuncs.pfnRegisterVariable( "cam_idealpitch", "0", 0 );	 // thirperson pitch
-	cam_idealdist			= gEngfuncs.pfnRegisterVariable( "cam_idealdist", "40", 0 );	// ESFR - Modified to 40, before: 128	 // thirdperson distance
+	cam_idealdist			= gEngfuncs.pfnRegisterVariable( "cam_idealdist", "40", 0 );	// ESF - Modified to 40, before: 128	 // thirdperson distance
 	cam_contain			= gEngfuncs.pfnRegisterVariable( "cam_contain", "0", 0 );	// contain camera to world
 
-	// ESFR - Camera point offset along the camera's own axes, matching
+	// ESF - Camera point offset along the camera's own axes, matching
 	// layout: x = right/left, y = extra forward/back, z = up/down
 	cam_xoffset			= gEngfuncs.pfnRegisterVariable( "cam_xoffset", "0", 0 );	// right/left
 	cam_yoffset			= gEngfuncs.pfnRegisterVariable( "cam_yoffset", "0", 0 );	// extra forward/back
@@ -688,7 +666,7 @@ void CAM_ClearStates( void )
 	cam_in.state = 0;
 	cam_out.state = 0;
 
-	// ESFR - Force third person camera at the start
+	// ESF - Force third person camera at the start
 	cam_thirdperson = 1;
 	cam_command->value = 0;
 	cam_mousemove=0;
@@ -700,7 +678,7 @@ void CAM_ClearStates( void )
 	cam_ofs[1] = 0.0;
 	cam_ofs[2] = 40.0f;
 
-	// ESFR - Extra offsets
+	// ESF - Extra offsets
 	cam_extra_ofs[0] = cam_xoffset ? cam_xoffset->value : 0.0f;
 	cam_extra_ofs[1] = cam_yoffset ? cam_yoffset->value : 0.0f;
 	cam_extra_ofs[2] = cam_zoffset ? cam_zoffset->value : 0.0f;
@@ -709,7 +687,7 @@ void CAM_ClearStates( void )
 	cam_idealyaw->value = viewangles[YAW];
 	cam_idealdist->value = 40.0f;
 
-	// ESFR - Force third person camera at the start
+	// ESF - Force third person camera at the start
 	gEngfuncs.Cvar_SetValue( "cam_command", CAM_COMMAND_TOTHIRDPERSON );
 	cam_idealview = VIEW_THIRDPERSON;
 }
@@ -740,7 +718,7 @@ void CAM_StartMouseMove( void )
 				cam_old_mouse_y = cam_mouse.y;
 			}
 
-			// ESFR - Recenter immediately
+			// ESF - Recenter immediately
 			SetCursorPos( gEngfuncs.GetWindowCenterX(), gEngfuncs.GetWindowCenterY() );
 		}
 	}
@@ -780,7 +758,7 @@ void CAM_StartDistance( void )
 			cam_old_mouse_x = cam_mouse.x * gHUD.GetSensitivity();
 			cam_old_mouse_y = cam_mouse.y * gHUD.GetSensitivity();
 
-			// ESFR - Recenter immediately
+			// ESF - Recenter immediately
 			SetCursorPos( gEngfuncs.GetWindowCenterX(), gEngfuncs.GetWindowCenterY() );
 		}
 	}
@@ -812,7 +790,7 @@ void DLLEXPORT CL_CameraOffset( float *ofs )
 	VectorCopy( cam_ofs, ofs );
 }
 
-// ESFR - Extra offsets
+// ESF - Extra offsets
 void DLLEXPORT CL_CameraExtraOffset( float *ofs )
 {
 	VectorCopy( cam_extra_ofs, ofs );
