@@ -27,6 +27,9 @@
 #include "hltv.h"
 #include "view.h"
 
+#include "eventscripts.h"
+#include "camera.h"
+
 // Spectator Mode
 extern "C" 
 {
@@ -41,8 +44,6 @@ extern "C"
 {
 	int CL_IsThirdPerson( void );
 	void CL_CameraOffset( float *ofs );
-	// ESF - Extra offsets
-	void CL_CameraExtraOffset( float *ofs );
 
 	void DLLEXPORT V_CalcRefdef( struct ref_params_s *pparams );
 
@@ -79,9 +80,20 @@ extern cvar_t	*scr_ofsx, *scr_ofsy, *scr_ofsz;
 extern cvar_t	*cl_vsmoothing;
 extern cvar_t	*cl_viewbob;
 extern Vector   dead_viewangles;
+// ESF - Camera offsets
+extern cvar_t	*cam_xoffset;	// right/left
+extern cvar_t	*cam_yoffset;	// extra forward/back (se suma a dist)
+extern cvar_t	*cam_zoffset;	// up/down
 
 #define	CAM_MODE_RELAX		1
 #define CAM_MODE_FOCUS		2
+
+// ESF - Camera anchors
+#define CAM_ANCHOR_FEET			1.5f
+#define CAM_ANCHOR_HEAD			7.0f
+#define CAM_ANCHOR_WALL_MIN		0.70f	// horizNormal below this: feet (~ up to 45°)
+#define CAM_ANCHOR_WALL_MAX		0.98f	// horizNormal above this: head (~ near-vertical)
+#define CAM_ANCHOR_GROUND_RAMP	20.0f	// hit height above the ground at which a wall gets its full head lift
 
 vec3_t v_origin, v_angles, v_cl_angles, v_sim_org, v_lastAngles;
 float v_frametime, v_lastDistance;	
@@ -347,7 +359,7 @@ void V_CalcViewRoll( struct ref_params_s *pparams )
 	{
 		// only roll the view if the player is dead and the viewheight[2] is nonzero 
 		// this is so deadcam in multiplayer will work.
-		pparams->viewangles[ROLL] = 80;	// dead view angle
+		//pparams->viewangles[ROLL] = 80;	// dead view angle
 		return;
 	}
 }
@@ -409,6 +421,198 @@ typedef struct
 	int CurrentAngle;
 } viewinterp_t;
 
+// ESF - Traceable third person camera
+/*
+==================
+V_TraceCameraPoint
+
+Moves a point from start towards dest
+==================
+*/
+static float V_TraceCameraPoint( float *start, float *dest, float *out, float *outNormal = NULL )
+{
+	vec3_t delta, traceEnd;
+	pmtrace_t tr;
+	cl_entity_t *localPlayer;
+	float totalLen;
+
+	VectorSubtract( dest, start, delta );
+	totalLen = sqrt( DotProduct( delta, delta ) );
+	VectorCopy( dest, out );
+
+	// Default normal: nothing blocking (pointing up)
+	if( outNormal )
+	{
+		outNormal[0] = 0.0f;
+		outNormal[1] = 0.0f;
+		outNormal[2] = 1.0f;
+	}
+
+	if( totalLen < 0.01f )
+		return totalLen;
+
+	localPlayer = gEngfuncs.GetLocalPlayer();
+	if( !localPlayer || !gEngfuncs.pEventAPI )
+		return totalLen;
+
+	VectorMA( dest, DEFAULT_VIEWHEIGHT / totalLen, delta, traceEnd );
+
+	gEngfuncs.pEventAPI->EV_SetUpPlayerPrediction( false, true );
+	gEngfuncs.pEventAPI->EV_PushPMStates();
+	gEngfuncs.pEventAPI->EV_SetSolidPlayers( localPlayer->index - 1 );
+	gEngfuncs.pEventAPI->EV_SetTraceHull( 2 );
+	gEngfuncs.pEventAPI->EV_PlayerTrace( start, traceEnd, PM_NORMAL, -1, &tr );
+	gEngfuncs.pEventAPI->EV_PopPMStates();
+
+	if( tr.startsolid || tr.allsolid )
+	{
+		VectorCopy( start, out );
+		return 0.0f;
+	}
+
+	if( tr.fraction >= 1.0f )
+		return totalLen;
+
+	if( tr.fraction < 0.0f )
+		tr.fraction = 0.0f;
+
+	// Store the normal of the blocking surface (only on a real hit)
+	if( outNormal )
+	{
+		outNormal[0] = tr.plane.normal[0];
+		outNormal[1] = tr.plane.normal[1];
+		outNormal[2] = tr.plane.normal[2];
+	}
+
+	VectorMA( start, tr.fraction, delta, out );
+	return totalLen * tr.fraction;
+}
+
+/*
+==================
+V_TraceGroundHeight
+
+Height of a surface hit point above the ground below it, capped at maxHeight
+==================
+*/
+static float V_TraceGroundHeight( float *point, float *normal, float maxHeight )
+{
+	vec3_t start, end;
+	pmtrace_t tr;
+	cl_entity_t *localPlayer;
+	float height;
+
+	localPlayer = gEngfuncs.GetLocalPlayer();
+	if( !localPlayer || !gEngfuncs.pEventAPI )
+		return maxHeight;
+
+	// Step off the surface so the trace doesn't start inside it
+	VectorMA( point, 0.5f, normal, start );
+	VectorCopy( start, end );
+	end[2] -= maxHeight + 0.5f;
+
+	gEngfuncs.pEventAPI->EV_SetUpPlayerPrediction( false, true );
+	gEngfuncs.pEventAPI->EV_PushPMStates();
+	gEngfuncs.pEventAPI->EV_SetSolidPlayers( localPlayer->index - 1 );
+	gEngfuncs.pEventAPI->EV_SetTraceHull( 2 );
+	gEngfuncs.pEventAPI->EV_PlayerTrace( start, end, PM_NORMAL, -1, &tr );
+	gEngfuncs.pEventAPI->EV_PopPMStates();
+
+	if( tr.startsolid || tr.allsolid )
+		return 0.0f;
+
+	if( tr.fraction >= 1.0f )
+		return maxHeight;
+
+	// Remove the 0.5 step so a floor hit reads exactly 0
+	height = tr.fraction * ( maxHeight + 0.5f ) - 0.5f;
+	return Q_min( maxHeight, Q_max( 0.0f, height ) );
+}
+
+/*
+==================
+V_CalcTracedCameraPos
+
+origin is the player origin. The anchor is offset in world axes:
+  X: sideX  (cam_xoffset, world X anchor offset)
+  Y: sideY  (cam_yoffset, world Y anchor offset)
+  Z: height (cam_zoffset + 7, world-up height of the focus point)
+
+The anchor is fixed in world axes (it doesn't rotate with the camera) and the
+camera orbits around it at "dist" using the camera forward
+==================
+*/
+static float V_CalcTracedCameraPos( float *origin, float *camForward, float dist, float height,
+									float sideX, float sideY, float *outPos, float *outWantLen,
+									float *outNormal = NULL )
+{
+	vec3_t focus, zAnchor, probeAnchor, camDest, delta;
+	float tracedLen, anchorZ, probeLen, probeWantLen, horizNormal, lift;
+	int i;
+
+	// World-axis anchor (X, Y and Z are independent offsets)
+	camDest[0] = origin[0] + sideX;
+	camDest[1] = origin[1] + sideY;
+	camDest[2] = origin[2] + height;
+	V_TraceCameraPoint( origin, camDest, focus );
+
+	// Ideal camera position orbiting the anchor
+	for( i = 0; i < 3; i++ )
+		camDest[i] = focus[i] - dist * camForward[i];
+
+	// Probe trace from the FEET anchor to classify the obstruction
+	probeAnchor[0] = origin[0];
+	probeAnchor[1] = origin[1];
+	probeAnchor[2] = origin[2] + CAM_ANCHOR_FEET;
+	V_TraceCameraPoint( origin, probeAnchor, probeAnchor );
+
+	probeLen = V_TraceCameraPoint( probeAnchor, camDest, outPos, outNormal );
+
+	VectorSubtract( camDest, probeAnchor, delta );
+	probeWantLen = sqrt( DotProduct( delta, delta ) );
+
+	// Map the hit normal to an anchor height. horizNormal is 0 for
+	// floor/ceiling and 1 for a wall. With the smoothstep:
+	// slope < 45° (horizNormal < 0.70) -> CAM_ANCHOR_FEET
+	// slope ~ 60° (horizNormal ~ 0.87) -> ~halfway
+	// wall > ~79° (horizNormal > 0.98) -> CAM_ANCHOR_HEAD
+	// The dead zone is what keeps shallow ramps from lifting the camera
+	horizNormal = sqrt( outNormal[0] * outNormal[0] + outNormal[1] * outNormal[1] );
+
+	if( probeLen < probeWantLen - 0.01f )
+	{
+		lift = ( horizNormal - CAM_ANCHOR_WALL_MIN )
+			 / ( CAM_ANCHOR_WALL_MAX - CAM_ANCHOR_WALL_MIN );
+		lift = Q_min( 1.0f, Q_max( 0.0f, lift ) );
+		lift = lift * lift * ( 3.0f - 2.0f * lift );	// smoothstep
+
+		// A wall only lifts the anchor as the hit gets away from the ground.
+		// At the wall/floor corner both sides give 0, so the anchor doesn't jump
+		float groundLift = V_TraceGroundHeight( outPos, outNormal, CAM_ANCHOR_GROUND_RAMP ) / CAM_ANCHOR_GROUND_RAMP;
+		groundLift = groundLift * groundLift * ( 3.0f - 2.0f * groundLift );	// smoothstep
+		lift *= groundLift;
+
+		anchorZ = CAM_ANCHOR_FEET + lift * ( CAM_ANCHOR_HEAD - CAM_ANCHOR_FEET );
+	}
+	else
+	{
+		anchorZ = CAM_ANCHOR_FEET;	// nothing blocking; anchor height is irrelevant
+	}
+
+	// Final trace from the chosen anchor
+	zAnchor[0] = origin[0];
+	zAnchor[1] = origin[1];
+	zAnchor[2] = origin[2] + anchorZ;
+	V_TraceCameraPoint( origin, zAnchor, zAnchor );
+
+	VectorSubtract( camDest, zAnchor, delta );
+	*outWantLen = sqrt( DotProduct( delta, delta ) );
+
+	tracedLen = V_TraceCameraPoint( zAnchor, camDest, outPos, outNormal );
+
+	return tracedLen;
+}
+
 /*
 ==================
 V_CalcRefdef
@@ -420,13 +624,17 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 	cl_entity_t *ent, *view;
 	int i;
 	vec3_t angles;
-	float bob, waterOffset;
+	float bob = 0.0f, waterOffset;
 	static viewinterp_t ViewInterp;
 
 	static float oldz = 0;
 	static float lasttime;
+	// ESF - Auto first person for third person camera
+	static qboolean autoFirstPerson = false;
+	// ESF - The local player model is being faded out by the camera
+	static qboolean fadedPlayer = false;
 
-	vec3_t camAngles, camForward, camRight, camUp;
+	vec3_t camAngles, camForward;
 	cl_entity_t *pwater;
 
 	if( gEngfuncs.IsSpectateOnly() )
@@ -442,22 +650,29 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 	// view is the weapon model (only visible from inside body)
 	view = gEngfuncs.GetViewModel();
 
+	// ESF - Death camera: stay in third person with free look while dead
+	if( !gEngfuncs.IsSpectateOnly() && !g_iUser1 )
+		CAM_SetDeathView( pparams->health <= 0 );
+
 	// transform the view offset by the model's matrix to get the offset from
 	// model origin for the view
-	// ESF - Don't bob at all
-	bob = 0.0f;
-	// bob = V_CalcBob( pparams );
+	// ESF - Don't bob at all on third person camera
+	if( !CAM_IsThirdPersonRequested() || autoFirstPerson )
+		bob = V_CalcBob( pparams );
 
 	// refresh position
 	VectorCopy( pparams->simorg, pparams->vieworg );
 	pparams->vieworg[2] += bob ;
 	VectorAdd( pparams->vieworg, pparams->viewheight, pparams->vieworg );
 
+	// ESF - Don't make angles lock while dead
+	/*
 	if( pparams->health <= 0 )
 	{
 		VectorCopy( dead_viewangles, pparams->viewangles );
 	}
 	else
+	*/
 	{
 		VectorCopy( pparams->cl_viewangles, pparams->viewangles );
 	}
@@ -538,11 +753,14 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 	V_AddIdle( pparams );
 
 	// offsets
+	// ESF - Don't make angles lock while dead
+	/*
 	if( pparams->health <= 0 )
 	{
 		VectorCopy( dead_viewangles, angles );
 	}
 	else
+	*/
 	{
 		VectorCopy( pparams->cl_viewangles, angles );
 	}
@@ -559,45 +777,77 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 	}
 
 	// Treating cam_ofs[2] as the distance
-	if( CL_IsThirdPerson() )
+	if( CAM_IsThirdPersonRequested() )
 	{
 		vec3_t ofs;
-		// ESF - Extra offsets
-		vec3_t extraOfs;
+		vec3_t origin, camPos, eyeDelta, hitNormal;
+		float tracedLen, height, totalDist, wantLen, eyeDist, horizNormal;
 
-		ofs[0] = ofs[1] = ofs[2] = 0.0f;
-		extraOfs[0] = extraOfs[1] = extraOfs[2] = 0.0f;
+		ofs[0] = cam_xoffset->value;
+		ofs[1] = cam_yoffset->value;
+		ofs[2] = 0.0f;
 
 		CL_CameraOffset( (float *)&ofs );
-		CL_CameraExtraOffset( (float *)&extraOfs );
 
 		VectorCopy( ofs, camAngles );
 		camAngles[ROLL]	= 0;
 
-		AngleVectors( camAngles, camForward, camRight, camUp );
+		AngleVectors( camAngles, camForward, NULL, NULL );
 
-		for( i = 0; i < 3; i++ )
+		// vieworg minus viewheight keeps shake/water/scr_ofs but drops the eye height
+		VectorSubtract( pparams->vieworg, pparams->viewheight, origin );
+
+		// cam_zoffset = world-up height of the focus point
+		height = cam_zoffset->value + CAM_ANCHOR_HEAD;
+
+		// cam_xoffset / cam_yoffset are world-axis anchor offsets,
+		// not forward/back or camera-relative side offsets
+		totalDist = ofs[2];
+
+		tracedLen = V_CalcTracedCameraPos( origin, camForward, totalDist, height,
+											cam_xoffset->value, cam_yoffset->value,
+											camPos, &wantLen, hitNormal );
+
+		// ESF - Distance to the eyes.
+		// + 11 Z bias makes the threshold match the player's eye level instead of the anchor height
+		VectorSubtract( camPos, pparams->vieworg, eyeDelta );
+		eyeDelta[2] += ( CAM_ANCHOR_HEAD + 4.0f );
+		eyeDist = sqrt( DotProduct( eyeDelta, eyeDelta ) );
+
+		// ESF - Only a hit with a horizontal normal (a wall) counts. Floor and ceiling hits (vertical normal) 
+		// never force first person, even if the camera dips near the head when looking up
+		horizNormal = sqrt( hitNormal[0] * hitNormal[0] + hitNormal[1] * hitNormal[1] );
+		qboolean blockedByWall = ( tracedLen < wantLen - 0.01f ) && ( horizNormal > 0.5f );
+
+		if( autoFirstPerson )
 		{
-			// ESF - Main distance along the camera's forward axis, 
-			// plus the cam_xoffset/cam_yoffset/cam_zoffset point offset 
-			// along the camera's own axes
-			// matching ESF's layout: 
-			// x = right, y = extra forward/back, z = up/down
-			pparams->vieworg[i] += -ofs[2] * camForward[i]
-				+ extraOfs[0] * camRight[i]
-				+ extraOfs[1] * camForward[i]
-				+ extraOfs[2] * camUp[i];
+			if( eyeDist > CAM_FIRSTPERSON_ENTER_EXIT || !blockedByWall )
+				autoFirstPerson = false;
 		}
-		// ESF - Adjust height view to -21.675
-		pparams->vieworg[2] -= 21.675f;
+		else if( eyeDist < CAM_FIRSTPERSON_ENTER_EXIT && blockedByWall )
+		{
+			autoFirstPerson = true;
+		}
+
+		CAM_SetAutoFirstPerson( autoFirstPerson );
+
+		if( !autoFirstPerson )
+			VectorCopy( camPos, pparams->vieworg );
+	}
+	else
+	{
+		autoFirstPerson = false;
+		CAM_SetAutoFirstPerson( false );
 	}
 
 	// Give gun our viewangles
+	// ESF - Don't make angles lock while dead
+	/*
 	if( pparams->health <= 0 )
 	{
 		VectorCopy( dead_viewangles, view->angles );
 	}
-	else
+	*/
 	{
 		VectorCopy( pparams->cl_viewangles, view->angles );
 	}
@@ -758,7 +1008,8 @@ void V_CalcNormalRefdef( struct ref_params_s *pparams )
 		VectorCopy( camAngles, pparams->viewangles );
 	}
 
-	// Apply this at all times
+	// ESF - Apply this while alive (a dead body must not tilt with the free look camera)
+	if( pparams->health > 0 )
 	{
 		float pitch = pparams->viewangles[0];
 
@@ -1553,7 +1804,7 @@ void V_CalcSpectatorRefdef( struct ref_params_s * pparams )
 
 	// write back new values into pparams
 	VectorCopy( v_cl_angles, pparams->cl_viewangles );
-	VectorCopy( v_angles, pparams->viewangles )
+	VectorCopy( v_angles, pparams->viewangles );
 	VectorCopy( v_origin, pparams->vieworg );
 }
 

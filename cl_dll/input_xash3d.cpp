@@ -182,14 +182,10 @@ void FWGSInput::IN_Move( float frametime, usercmd_t *cmd )
 		V_StopPitchDrift();
 	}
 #endif
-	if( CL_IsDead() )
-	{
-		viewangles = dead_viewangles; // HACKHACK: see below
-	}
-	else
-	{
-		gEngfuncs.GetViewAngles( viewangles );
-	}
+	// ESF - Always use the real view angles, even while dead.
+	// The angles sent to the server are frozen in CL_CreateMove (oldangles),
+	// so the dead player can look freely with the third person camera
+	gEngfuncs.GetViewAngles( viewangles );
 	float mouse_sensitivity = gHUD.GetSensitivity() != 0 ? gHUD.GetSensitivity() : IN_GetMouseSensitivity();
 	rel_yaw *= mouse_sensitivity;
 	rel_pitch *= mouse_sensitivity;
@@ -210,12 +206,8 @@ void FWGSInput::IN_Move( float frametime, usercmd_t *cmd )
 	if( viewangles[PITCH] < -cl_pitchup->value )
 		viewangles[PITCH] = -cl_pitchup->value;
 	
-	// HACKHACK: change viewangles directly in viewcode, 
-	// so viewangles when player is dead will not be changed on server
-	if( !CL_IsDead() )
-	{
-		gEngfuncs.SetViewAngles( viewangles );
-	}
+	// ESF - Always use the real view angles, even while dead
+	gEngfuncs.SetViewAngles( viewangles );
 
 	dead_viewangles = viewangles; // keep them actual
 	if( ac_movecount )

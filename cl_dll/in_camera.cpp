@@ -13,8 +13,6 @@
 #include "usercmd.h"
 #include "const.h"
 #include "in_defs.h"
-#include "pm_defs.h"
-#include "event_api.h" 
 
 #if XASH_WIN32
 #define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
@@ -39,8 +37,6 @@ extern "C"
 	void DLLEXPORT CAM_Think( void );
 	int DLLEXPORT CL_IsThirdPerson( void );
 	void DLLEXPORT CL_CameraOffset( float *ofs );
-	// ESF - Extra offsets
-	void DLLEXPORT CL_CameraExtraOffset( float *ofs );
 }
 
 extern cl_enginefunc_t gEngfuncs;
@@ -74,7 +70,7 @@ cvar_t	*cam_idealpitch;
 cvar_t	*cam_idealdist;
 cvar_t	*cam_contain;
 
-// ESF - Camera point offset along the camera's own right/up/forward axes
+// ESF - Camera offsets
 cvar_t	*cam_xoffset;
 cvar_t	*cam_yoffset;
 cvar_t	*cam_zoffset;
@@ -89,9 +85,6 @@ cvar_t	*c_mindistance;
 // pitch, yaw, dist
 vec3_t cam_ofs;
 
-// ESF - Camera point offset (right, up, extra-forward)
-vec3_t cam_extra_ofs;
-
 // ESF - Global camera angles
 vec3_t g_CameraAngles;
 
@@ -100,6 +93,8 @@ int cam_idealview = VIEW_THIRDPERSON;
 
 // In third person
 int cam_thirdperson;
+// ESF - Set by the view code while the traced camera is glued to the player
+static qboolean cam_autofirstperson = false;
 int cam_mousemove; //true if we are moving the cam with the mouse, False if not
 int iMouseInUse = 0;
 int cam_distancemove;
@@ -410,72 +405,6 @@ void DLLEXPORT CAM_Think( void )
 			camAngles[2] += ( cam_idealdist->value - camAngles[2] ) * 0.25f;
 	}
 
-	// ESF - Trace from the camera pivot
-	{
-		pmtrace_t tr;
-		vec3_t camForward, camRight, camUp;
-		vec3_t traceAngles;
-
-		// camAngles[2] holds the distance, not a roll.
-		// V_CalcNormalRefdef zeroes it too, so both sides use the same axes
-		VectorCopy( camAngles, traceAngles );
-		traceAngles[ROLL] = 0.0f;
-		AngleVectors( traceAngles, camForward, camRight, camUp );
-
-		// Defaults: nothing blocking, use the full distance
-		float tracedDist = dist;
-		float tracedFactor = 1.0f;
-		cl_entity_t *localPlayer = gEngfuncs.GetLocalPlayer();
-		if( localPlayer && gEngfuncs.pEventAPI )
-		{
-			vec3_t view_ofs;
-			gEngfuncs.pEventAPI->EV_LocalPlayerViewheight( view_ofs );
-
-			vec3_t pivot;
-			VectorAdd( localPlayer->origin, view_ofs, pivot );
-			// Same drop as V_CalcNormalRefdef, applied BEFORE building the ray end
-			pivot[2] -= 21.675f;
-
-			vec3_t fullOfs;
-			VectorScale( camForward, -dist, fullOfs );
-			VectorMA( fullOfs, cam_xoffset->value, camRight, fullOfs );
-			VectorMA( fullOfs, cam_yoffset->value, camForward, fullOfs );
-			VectorMA( fullOfs, cam_zoffset->value, camUp, fullOfs );
-
-			float totalLen = sqrt( DotProduct( fullOfs, fullOfs ) );
-
-			vec3_t camPos;
-			VectorAdd( pivot, fullOfs, camPos );
-
-			gEngfuncs.pEventAPI->EV_SetUpPlayerPrediction( false, true );
-			gEngfuncs.pEventAPI->EV_PushPMStates();
-			gEngfuncs.pEventAPI->EV_SetSolidPlayers( localPlayer->index - 1 );
-			gEngfuncs.pEventAPI->EV_SetTraceHull( 2 );	// point hull
-			gEngfuncs.pEventAPI->EV_PlayerTrace( pivot, camPos, PM_NORMAL, -1, &tr );
-			gEngfuncs.pEventAPI->EV_PopPMStates();
-
-			float frac = tr.fraction;
-
-			// Keep a small skin off the surface, but let it reach the pivot
-			float hitLen = frac * totalLen;
-
-			//tracedDist = hitLen * ( dist / totalLen );
-			//tracedFactor = hitLen / totalLen;
-
-			tracedDist = hitLen * ( dist / totalLen );
-			tracedFactor = frac;
-		}
-
-		camAngles[2] = tracedDist;
-
-		// scale the extra offsets
-		cam_extra_ofs[0] = tracedFactor * cam_xoffset->value;
-		cam_extra_ofs[1] = tracedFactor * cam_yoffset->value;
-		cam_extra_ofs[2] = tracedFactor * cam_zoffset->value;
-	}
-	// synchronize distance by trace
-	dist = camAngles[2];
-
 #if LATER
 	if( cam_contain->value )
 	{
@@ -605,6 +534,32 @@ void CAM_ToFirstPerson( void )
 	gEngfuncs.Cvar_SetValue( "cam_command", 0 );
 }
 
+// ESF - Death camera: while dead, force the same third person camera as when
+// alive (free look around the body); restore the requested view when alive again
+void CAM_SetDeathView( qboolean dead )
+{
+	vec3_t viewangles;
+
+	if( dead )
+	{
+		if( !cam_thirdperson )
+		{
+			gEngfuncs.GetViewAngles( (float *)viewangles );
+
+			cam_thirdperson = 1;
+
+			cam_ofs[YAW] = viewangles[YAW];
+			cam_ofs[PITCH] = viewangles[PITCH];
+			cam_ofs[2] = cam_idealdist->value;
+		}
+	}
+	else if( cam_thirdperson && cam_idealview == VIEW_FIRSTPERSON )
+	{
+		// The player asked for first person, give it back
+		cam_thirdperson = 0;
+	}
+}
+
 void CAM_ToggleSnapto( void )
 { 
 	cam_snapto->value = !cam_snapto->value;
@@ -639,11 +594,10 @@ void CAM_Init( void )
 	cam_idealdist			= gEngfuncs.pfnRegisterVariable( "cam_idealdist", "40", 0 );	// ESF - Modified to 40, before: 128	 // thirdperson distance
 	cam_contain			= gEngfuncs.pfnRegisterVariable( "cam_contain", "0", 0 );	// contain camera to world
 
-	// ESF - Camera point offset along the camera's own axes, matching
-	// layout: x = right/left, y = extra forward/back, z = up/down
-	cam_xoffset			= gEngfuncs.pfnRegisterVariable( "cam_xoffset", "0", 0 );	// right/left
-	cam_yoffset			= gEngfuncs.pfnRegisterVariable( "cam_yoffset", "0", 0 );	// extra forward/back
-	cam_zoffset			= gEngfuncs.pfnRegisterVariable( "cam_zoffset", "10", 0 );	// up/down
+	// ESF - Camera offsets: x = right/left, y = forward/back (added to the distance), z = camera height
+	cam_xoffset			= gEngfuncs.pfnRegisterVariable( "cam_xoffset", "0", 0 );	// world X anchor offset (third person)
+	cam_yoffset			= gEngfuncs.pfnRegisterVariable( "cam_yoffset", "0", 0 );	// forward/back
+	cam_zoffset			= gEngfuncs.pfnRegisterVariable( "cam_zoffset", "10", 0 );	// camera height
 
 	c_maxpitch			= gEngfuncs.pfnRegisterVariable( "c_maxpitch", "90.0", 0 );
 	c_minpitch			= gEngfuncs.pfnRegisterVariable( "c_minpitch", "0.0", 0 );
@@ -677,11 +631,6 @@ void CAM_ClearStates( void )
 	cam_ofs[0] = 0.0;
 	cam_ofs[1] = 0.0;
 	cam_ofs[2] = 40.0f;
-
-	// ESF - Extra offsets
-	cam_extra_ofs[0] = cam_xoffset ? cam_xoffset->value : 0.0f;
-	cam_extra_ofs[1] = cam_yoffset ? cam_yoffset->value : 0.0f;
-	cam_extra_ofs[2] = cam_zoffset ? cam_zoffset->value : 0.0f;
 
 	cam_idealpitch->value = viewangles[PITCH];
 	cam_idealyaw->value = viewangles[YAW];
@@ -780,18 +729,28 @@ void CAM_EndDistance( void )
 	iMouseInUse = 0;
 }
 
+// ESF - Third person as requested, without the auto first person override
+int CAM_IsThirdPersonRequested( void )
+{
+	return ( cam_thirdperson ) || ( g_iUser1 && ( g_iUser2 == gEngfuncs.GetLocalPlayer()->index ) );
+}
+
+void CAM_SetAutoFirstPerson( qboolean enable )
+{
+	cam_autofirstperson = enable;
+}
+
 int DLLEXPORT CL_IsThirdPerson( void )
 {
-	return ( cam_thirdperson ? 1 : 0 ) || ( g_iUser1 && ( g_iUser2 == gEngfuncs.GetLocalPlayer()->index ) );
+	// ESF - The engine uses this to draw the player model / viewmodel,
+	// so the auto first person has to be reported here too
+	if( cam_autofirstperson )
+		return 0;
+
+	return CAM_IsThirdPersonRequested();
 }
 
 void DLLEXPORT CL_CameraOffset( float *ofs )
 {
 	VectorCopy( cam_ofs, ofs );
-}
-
-// ESF - Extra offsets
-void DLLEXPORT CL_CameraExtraOffset( float *ofs )
-{
-	VectorCopy( cam_extra_ofs, ofs );
 }

@@ -31,4 +31,15 @@ void CAM_Init( void );
 void CAM_ClearStates( void );
 void CAM_StartMouseMove( void );
 void CAM_EndMouseMove( void );
+
+// ESF - Death view
+void CAM_SetDeathView( qboolean dead );
+
+// ESF - Auto first person: when the traced camera gets closer than ENTER to its
+// focus point it switches to first person, and back to third person above EXIT
+#define CAM_FIRSTPERSON_ENTER_EXIT	11.0f
+// ESF - Third person as requested (cam_thirdperson or spectating self), ignoring the auto first person
+int CAM_IsThirdPersonRequested( void );
+void CAM_SetAutoFirstPerson( qboolean enable );
+
 #endif // _CAMERA_H_

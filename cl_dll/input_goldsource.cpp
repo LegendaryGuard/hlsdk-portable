@@ -835,14 +835,8 @@ void GoldSourceInput::IN_MouseMove ( float frametime, usercmd_t *cmd)
 	if( gHUD.m_iIntermission )
 		return; // we can't move during intermission
 
-	if( CL_IsDead() )
-	{
-		viewangles = dead_viewangles; // HACKHACK: see below
-	}
-	else
-	{
-		gEngfuncs.GetViewAngles( viewangles );
-	}
+	// ESF - Always use the real view angles, even while dead
+	gEngfuncs.GetViewAngles( viewangles );
 
 	if ( in_mlook.state & 1)
 	{
@@ -902,12 +896,8 @@ void GoldSourceInput::IN_MouseMove ( float frametime, usercmd_t *cmd)
 		}
 	}
 
-	// HACKHACK: change viewangles directly in viewcode,
-	// so viewangles when player is dead will not be changed on server
-	if( !CL_IsDead() )
-	{
-		gEngfuncs.SetViewAngles( viewangles );
-	}
+	// ESF - Always use the real view angles, even while dead
+	gEngfuncs.SetViewAngles( viewangles );
 
 	dead_viewangles = viewangles; // keep them actual
 /*
